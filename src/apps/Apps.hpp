@@ -6,4 +6,5 @@ class FilesApp final:public Application{public:std::string id()const override{re
 class CameraApp final:public Application{public:std::string id()const override{return"camera";}std::string name()const override{return"Camera";}void render(UiContext&)override;};
 class BluetoothApp final:public Application{public:std::string id()const override{return"bluetooth";}std::string name()const override{return"Bluetooth";}void render(UiContext&)override;};
 class NotesApp final:public Application{public:std::string id()const override{return"notes";}std::string name()const override{return"Notes";}void render(UiContext&)override;};
+class FinanceApp final:public Application{public:std::string id()const override{return"finance";}std::string name()const override{return"Finance";}void render(UiContext&)override;};
 }

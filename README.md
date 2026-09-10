@@ -1,4 +1,4 @@
-# Pine OS 0.1
+# Pine OS 0.2
 
 Pine OS is a native C++20 handheld operating environment. Version 0.1 runs in a
 resizable 720 × 1280 SDL device window and isolates host behavior behind platform
@@ -21,7 +21,7 @@ Linux or macOS:
 ./run.sh
 ```
 
-The first build fetches pinned SDL 3.2.22 and nlohmann/json 3.12.0 source releases.
+The first build fetches pinned SDL 3.2.22, nlohmann/json 3.12.0, and SQLite 3.50.4 source releases.
 Later builds use CMake's local dependency cache. Requirements are CMake 3.24+, a C++20
 compiler, and internet access for the first configure. Windows `build.ps1` automatically
 finds the CMake bundled with Visual Studio Build Tools when CMake is not on `PATH`.
@@ -42,6 +42,10 @@ With a multi-configuration Windows generator, add `-C Release`.
 - Use **Home** or **Back** at the bottom to leave an app.
 - Notes provides local search, pinning, guarded deletion, debounced autosave, and one
   persistent JSON record per note under `data/notes`.
+- Finance provides offline accounts, exact-money transactions, atomic transfers, budgets,
+  bills, subscriptions, goals, analytics, calculators, customizable dashboards, CSV import,
+  CSV/JSON export, backups, balance privacy, and optional device-PIN locking. Its indexed,
+  migrated SQLite database lives under `data/finance`; no bank credentials are collected.
 - Tap any compatible editable field to open Pine's animated system keyboard. It supports
   QWERTY, Shift/Caps Lock, symbols, multiline/Next/Search actions, Backspace hold-repeat,
   touch cursor placement, and physical keyboard input through the same session API.
@@ -55,11 +59,12 @@ With a multi-configuration Windows generator, add `-C Release`.
 ## Source layout
 
 - `src/core`: application lifecycle, configuration, logger, generated canonical version
-- `src/services`: platform-independent Pine APIs, including background Notes persistence
+- `src/services`: platform-independent Pine APIs, including Notes, notifications, and security
+- `src/finance`: exact money, migrated persistence, analytics, providers, import/export, and locking
 - `src/platform`: hardware interfaces and desktop backends
 - `src/input`: reusable text sessions, focus manager, and system on-screen keyboard
 - `src/ui`: SDL shell, boot screen, status/navigation, developer panel, theme, TrueType text
-- `src/apps`: Files, Camera, Bluetooth, Notes, and Settings
+- `src/apps`: Files, Camera, Bluetooth, Notes, Finance, and Settings
 - `tests`: native service and persistence tests run by CTest
 
 The camera backend uses a deterministic generated preview and capture on desktop. This

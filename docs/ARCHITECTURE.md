@@ -36,3 +36,20 @@ The Notes UI is a normal in-shell application. `NotesService` keeps its in-memor
 responsive while a worker serializes each stable note ID to a separate JSON record.
 Writes use temporary and backup files, three bounded retries, error logging, and an
 explicit flush during app/system shutdown. Search and pin-first sorting operate locally.
+
+## Finance
+
+Finance is local-first and depends on the shared Pine shell, keyboard, Files sandbox,
+notifications, network state, and security service. Monetary values are stored as signed
+64-bit minor units through the `Money`/`Currency` abstraction; floating point is used only
+for non-persistent calculator projections. `FinanceDatabase` owns schema migrations,
+foreign keys, WAL durability, and indexes. Corrupt databases are preserved for recovery;
+if storage is unavailable, the app remains usable in memory and surfaces a warning.
+
+`FinanceService` is the transactional domain boundary for accounts, activity, linked
+transfers, categories, budgets, bills, subscriptions, goals, and snapshots. The UI never
+executes SQL. `AnalyticsEngine` performs local cash-flow/category/recurrence analysis.
+`ImportExportManager` validates sandboxed paths, previews and deduplicates mapped CSV rows,
+streams paginated exports, and uses SQLite's online backup API. File jobs run asynchronously.
+`FinancialDataProvider` keeps optional future bank connections outside the core model; the
+built-in manual provider works without a network and never requests banking credentials.

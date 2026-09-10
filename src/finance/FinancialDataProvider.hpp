@@ -1,0 +1,4 @@
+#pragma once
+#include <string>
+#include <vector>
+namespace Pine::Finance {struct ProviderResult{bool success{};std::string state,message;};class FinancialDataProvider{public:virtual~FinancialDataProvider()=default;virtual std::string id()const=0;virtual bool requiresNetwork()const=0;virtual ProviderResult sync()=0;};class ManualProvider final:public FinancialDataProvider{public:std::string id()const override{return"manual";}bool requiresNetwork()const override{return false;}ProviderResult sync()override{return{true,"Manual","Manual accounts are already current"};}};class FinanceSyncManager{public:explicit FinanceSyncManager(bool online):online_(online){}ProviderResult sync(FinancialDataProvider&provider){if(provider.requiresNetwork()&&!online_)return{false,"Offline","Sync will resume when connectivity returns"};return provider.sync();}void setOnline(bool value){online_=value;}private:bool online_{};};}
