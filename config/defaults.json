@@ -1,0 +1,9 @@
+{
+  "deviceName": "Pine",
+  "brightness": 65,
+  "volume": 75,
+  "muted": false,
+  "bluetoothEnabled": true,
+  "wifiEnabled": true,
+  "developerMode": true
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Pine OS system shell
+After=network.target graphical.target
+
+[Service]
+Type=simple
+User=pine
+WorkingDirectory=/opt/pine-os
+ExecStart=/opt/pine-os/bin/pine --data=/var/lib/pine-os
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target

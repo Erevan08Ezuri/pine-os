@@ -1,0 +1,2 @@
+#include "services/UsbService.hpp"
+namespace Pine {void UsbService::cycle(){switch(mode()){case UsbMode::Disconnected:setMode(UsbMode::ChargingOnly);break;case UsbMode::ChargingOnly:setMode(UsbMode::FileTransfer);break;case UsbMode::FileTransfer:setMode(UsbMode::Disconnected);break;}}std::string UsbService::modeName()const{switch(mode()){case UsbMode::Disconnected:return"Disconnected";case UsbMode::ChargingOnly:return"Charging Only";case UsbMode::FileTransfer:return"File Transfer";}return"Unknown";}}

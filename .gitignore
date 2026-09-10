@@ -1,0 +1,11 @@
+/build/
+/work/
+/outputs/
+/data/
+/data/logs/
+/data/settings.json
+/data/storage/
+/assets/fonts/InterVariable.ttf
+/.vs/
+*.user
+*.suo

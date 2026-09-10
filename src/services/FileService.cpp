@@ -1,0 +1,18 @@
+#include "services/FileService.hpp"
+#include "core/Logger.hpp"
+#include <algorithm>
+#include <stdexcept>
+namespace Pine {
+FileService::FileService(std::filesystem::path root):root_(std::filesystem::absolute(std::move(root)).lexically_normal()){}
+void FileService::initialize(){std::filesystem::create_directories(root_);for(auto name:{"Documents","Downloads","Pictures","DCIM","Music","Videos"})std::filesystem::create_directories(root_/name);Logger::instance().info("FILESYSTEM","Storage sandbox ready at "+root_.string());}
+std::filesystem::path FileService::resolve(const std::filesystem::path&relative)const{if(relative.is_absolute())throw std::invalid_argument("Absolute paths are not allowed");auto clean=relative.lexically_normal();if(clean==".."||(!clean.empty()&&*clean.begin()==".."))throw std::invalid_argument("Path escapes Pine storage");auto out=(root_/clean).lexically_normal();auto canonicalRoot=std::filesystem::weakly_canonical(root_);auto canonicalOut=std::filesystem::weakly_canonical(out);auto rel=canonicalOut.lexically_relative(canonicalRoot);if(rel.empty()&&canonicalOut!=canonicalRoot)throw std::invalid_argument("Invalid storage path");if(!rel.empty()&&*rel.begin()=="..")throw std::invalid_argument("Path escapes Pine storage");return out;}
+std::vector<FileEntry>FileService::listDirectory(const std::filesystem::path&relative)const{std::vector<FileEntry>out;auto dir=resolve(relative);for(auto&e:std::filesystem::directory_iterator(dir)){auto s=e.symlink_status();if(std::filesystem::is_symlink(s))continue;out.push_back({e.path().filename().string(),e.path().lexically_relative(root_),e.is_directory(),e.is_regular_file()?e.file_size():0,e.last_write_time()});}std::ranges::sort(out,[](auto&a,auto&b){return a.directory!=b.directory?a.directory>b.directory:a.name<b.name;});return out;}
+bool FileService::createDirectory(const std::filesystem::path&p){try{return std::filesystem::create_directory(resolve(p));}catch(const std::exception&e){Logger::instance().error("FILESYSTEM",e.what());return false;}}
+bool FileService::rename(const std::filesystem::path&p,const std::string&name){if(name.empty()||name.find_first_of("/\\")!=std::string::npos)return false;try{auto src=resolve(p);std::filesystem::rename(src,src.parent_path()/name);return true;}catch(const std::exception&e){Logger::instance().error("FILESYSTEM",e.what());return false;}}
+bool FileService::copy(const std::filesystem::path&a,const std::filesystem::path&b){try{std::filesystem::copy(resolve(a),resolve(b),std::filesystem::copy_options::recursive);return true;}catch(const std::exception&e){Logger::instance().error("FILESYSTEM",e.what());return false;}}
+bool FileService::move(const std::filesystem::path&a,const std::filesystem::path&b){try{std::filesystem::rename(resolve(a),resolve(b));return true;}catch(const std::exception&e){Logger::instance().error("FILESYSTEM",e.what());return false;}}
+bool FileService::remove(const std::filesystem::path&p){if(p.empty())return false;try{return std::filesystem::remove_all(resolve(p))>0;}catch(const std::exception&e){Logger::instance().error("FILESYSTEM",e.what());return false;}}
+bool FileService::exists(const std::filesystem::path&p)const{return std::filesystem::exists(resolve(p));}
+FileEntry FileService::fileInfo(const std::filesystem::path&p)const{auto abs=resolve(p);return{abs.filename().string(),p,std::filesystem::is_directory(abs),std::filesystem::is_regular_file(abs)?std::filesystem::file_size(abs):0,std::filesystem::last_write_time(abs)};}
+std::uintmax_t FileService::usedBytes()const{std::uintmax_t total=0;for(auto&e:std::filesystem::recursive_directory_iterator(root_))if(e.is_regular_file())total+=e.file_size();return total;}
+}

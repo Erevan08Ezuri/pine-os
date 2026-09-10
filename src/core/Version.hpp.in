@@ -1,0 +1,3 @@
+#pragma once
+#define PINE_VERSION "@PROJECT_VERSION@"
+namespace Pine { inline constexpr const char* Version = PINE_VERSION; }
