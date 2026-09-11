@@ -51,7 +51,8 @@ void Shell::renderNotes(){
     const auto results=notes_.list(notesSearch_);const float listTop=275,listBottom=1165,cardHeight=126,gap=12;const float maxScroll=std::max(0.0f,results.size()*(cardHeight+gap)-(listBottom-listTop));notesScroll_=std::clamp(notesScroll_,0.0f,maxScroll);
     if(results.empty()){panel({80,360,560,230});label(240,410,notesSearch_.empty()?"NO NOTES YET":"NO MATCHING NOTES",3.5f);sublabel(210,465,notesSearch_.empty()?"YOUR NOTES STAY ON THIS DEVICE":"TRY A DIFFERENT SEARCH");if(notesSearch_.empty()&&button({190,515,340,58},"CREATE NOTE",true)){dismissInput();beginNewNote();}return;}
     for(std::size_t i=0;i<results.size();++i){const float y=listTop+i*(cardHeight+gap)-notesScroll_;if(y+cardHeight<listTop||y>listBottom)continue;const Rect card{40,y,640,cardHeight};panel(card);label(65,y+20,displayTitle(results[i]).substr(0,42),3.0f);if(results[i].pinned)label(570,y+22,"PIN",2,Theme::Gold);sublabel(65,y+59,preview(results[i].body));label(65,y+91,modifiedLabel(results[i].updatedAt),1.85f,Theme::Muted);if(hit(card)){dismissInput();openNote(results[i].id);return;}}
-    if(click_&&!hit(search))dismissInput();return;
+    if(click_&&!hit(search))dismissInput();
+    return;
   }
 
   label(45,92,"NOTE EDITOR",4.5f,Theme::Gold);if(button({40,145,125,54},"BACK")){closeNoteEditor();return;}if(button({180,145,190,54},notePinned_?"UNPIN":"PIN",notePinned_)){notePinned_=!notePinned_;noteHasChanges_=true;commitNote();}if(button({515,145,165,54},"DELETE")){dismissInput();deleteNotePrompt_=true;}

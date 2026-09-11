@@ -6,13 +6,15 @@ The desktop simulator remains available through the desktop build target.
 
 ## Current status
 
-Build verification is blocked: the local execution environment disconnected, and
-GitHub Actions runs 34626788172 and 34626789301 ended in startup_failure before
-creating any jobs. No passing firmware build or downloadable firmware is available.
-Do not treat this branch as ready to flash until compilation succeeds and the device
-checks below have been performed. The connector exposed no diagnostic for the
-workflow startup failure.
-Physical Tab5 testing has not been performed by the authoring environment.
+The firmware was compiled successfully with ESP-IDF 5.5.1 for ESP32-P4 on
+September 11, 2026. The resulting application image is 4,175,216 bytes and leaves
+43% free in the 7 MiB application partition. Desktop unit/service tests and two
+consecutive acceptance launches against the same persistent data directory pass.
+
+The packaged firmware is ready for device validation. Physical display, touch,
+radio, and power testing still requires a connected M5Stack Tab5 and has not been
+performed by the authoring environment; complete the checklist below before calling
+a particular hardware installation production-validated.
 
 ## Hardware
 
@@ -115,6 +117,7 @@ to prevent incorrect transaction dates. Display time currently uses UTC.
 - https://github.com/georgik/esp-idf-component-SDL
 - https://docs.espressif.com/projects/esp-idf/en/v5.5.1/esp32p4/api-guides/cplusplus.html
 
-Dependency source pins and the two explicit factory BSP build adaptations are in
-prepare.py. Upstream licenses remain in the downloaded dependencies; Inter's license
-is bundled in assets/fonts/LICENSE-Inter.txt.
+Dependency source pins and validated factory BSP/SQLite build adaptations are in
+prepare.py. The ESP Component Manager lock file fixes the resolved component graph.
+Upstream licenses remain in the downloaded dependencies; Inter's license is bundled
+in assets/fonts/LICENSE-Inter.txt.

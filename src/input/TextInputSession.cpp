@@ -20,14 +20,18 @@ std::string TextInputSession::filtered(std::string_view input)const{
   for(char c:input){
     if(type_!=InputType::Multiline&&(c=='\n'||c=='\r'))continue;
     if(type_==InputType::Number&&!(std::isdigit(static_cast<unsigned char>(c))||c=='-'||c=='.'))continue;
-    if(c=='\r')c='\n';out.push_back(c);
+    if(c=='\r')c='\n';
+    out.push_back(c);
   }
   return out;
 }
 void TextInputSession::replaceSelection(std::string_view input){
   auto text=filtered(input);const auto first=std::min(cursor_,anchor_),last=std::max(cursor_,anchor_);
   const auto available=maxLength_-(value_.size()-(last-first));if(text.size()>available)text.resize(available);
-  if(first==last&&text.empty())return;value_.replace(first,last-first,text);cursor_=anchor_=first+text.size();if(changed_)changed_();
+  if(first==last&&text.empty())return;
+  value_.replace(first,last-first,text);
+  cursor_=anchor_=first+text.size();
+  if(changed_)changed_();
 }
 void TextInputSession::insertText(std::string_view text){replaceSelection(text);}
 void TextInputSession::deleteBackward(){

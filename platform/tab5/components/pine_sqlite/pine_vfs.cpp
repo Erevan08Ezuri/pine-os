@@ -111,7 +111,8 @@ int deleteFile(sqlite3_vfs*,const char* name,int){
 }
 int accessFile(sqlite3_vfs*,const char* name,int,int* result){
     struct stat st{};*result=::stat(name,&st)==0;
-    if(!*result&&errno!=ENOENT&&errno!=ENOTDIR)return SQLITE_IOERR_ACCESS;return SQLITE_OK;
+    if(!*result&&errno!=ENOENT&&errno!=ENOTDIR)return SQLITE_IOERR_ACCESS;
+    return SQLITE_OK;
 }
 int fullPath(sqlite3_vfs*,const char* name,int size,char* out){
     if(!name||name[0]!='/'||std::strlen(name)>=static_cast<size_t>(size))return SQLITE_CANTOPEN;

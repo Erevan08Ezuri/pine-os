@@ -15,6 +15,17 @@ REPOS = {
 }
 def run(*args, cwd=None):
     subprocess.run(args, cwd=cwd, check=True)
+
+
+def replace_required(path, old, new):
+    """Apply an idempotent vendor patch and fail if the expected source changed."""
+    contents = path.read_text(encoding='utf-8')
+    if old in contents:
+        path.write_text(contents.replace(old, new), encoding='utf-8')
+    elif new not in contents:
+        raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
+
+
 def prepare():
     DEPS.mkdir(exist_ok=True)
     for name, (url, sha) in REPOS.items():
@@ -31,11 +42,17 @@ def prepare():
     # Explicit modifications to the upstream BSP: disable its LVGL dependency.
     bsp = DEPS / 'factory/platforms/tab5/components/m5stack_tab5'
     cfg = bsp / 'include/bsp/config.h'
-    cfg.write_text(cfg.read_text().replace('#define BSP_CONFIG_NO_GRAPHIC_LIB (0)', '#define BSP_CONFIG_NO_GRAPHIC_LIB (1)'))
+    replace_required(cfg, '#define BSP_CONFIG_NO_GRAPHIC_LIB (0)', '#define BSP_CONFIG_NO_GRAPHIC_LIB (1)')
     cmake = bsp / 'CMakeLists.txt'
-    cmake.write_text(cmake.read_text().replace('        esp_lvgl_port', '        esp_lcd_touch_gt911'))
+    replace_required(cmake, '        esp_lvgl_port', '        esp_lcd_touch_gt911')
+    # The pinned factory BSP refers to ES7210 microphone selectors as ES7120,
+    # which prevents the otherwise supported audio component from compiling.
+    replace_required(bsp / 'm5stack_tab5.c', 'ES7120_SEL_MIC', 'ES7210_SEL_MIC')
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
-    panel.write_text('idf_component_register(SRCS "esp_lcd_st7121.c" INCLUDE_DIRS "include" REQUIRES esp_lcd)\n')
+    panel.write_text(
+        'idf_component_register(SRCS "esp_lcd_st7121.c" INCLUDE_DIRS "include" REQUIRES esp_lcd)\n',
+        encoding='utf-8',
+    )
     sqlite = DEPS / 'sqlite'
     if not (sqlite / 'sqlite3.c').exists():
         with urllib.request.urlopen('https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip', timeout=120) as r:
@@ -46,6 +63,14 @@ def prepare():
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             for name in ('sqlite3.c','sqlite3.h'):
                 (sqlite / name).write_bytes(z.read('sqlite-amalgamation-3500400/' + name))
+    # SQLITE_OS_OTHER normally selects no-op mutexes. PineOS supplies a custom
+    # VFS but intentionally uses ESP-IDF pthreads, so do not select a second
+    # mutex implementation when SQLITE_MUTEX_PTHREADS was explicitly chosen.
+    replace_required(
+        sqlite / 'sqlite3.c',
+        '#if SQLITE_THREADSAFE && !defined(SQLITE_MUTEX_NOOP)',
+        '#if SQLITE_THREADSAFE && !defined(SQLITE_MUTEX_NOOP) && !defined(SQLITE_MUTEX_PTHREADS)',
+    )
     print('Tab5 dependencies ready.')
 if __name__ == '__main__':
     prepare()
