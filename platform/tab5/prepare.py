@@ -20,9 +20,11 @@ def run(*args, cwd=None):
 def replace_required(path, old, new):
     """Apply an idempotent vendor patch and fail if the expected source changed."""
     contents = path.read_text(encoding='utf-8')
+    if new in contents:
+        return
     if old in contents:
         path.write_text(contents.replace(old, new), encoding='utf-8')
-    elif new not in contents:
+    else:
         raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
 
 

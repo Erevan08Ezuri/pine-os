@@ -13,6 +13,6 @@ idf_component_register(
     m5stack_tab5 esp_lcd_touch esp_timer esp_system esp_wifi esp_wifi_remote esp_netif esp_event lwip)
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_20)
 target_compile_definitions(${COMPONENT_LIB} PUBLIC PINE_TAB5=1)
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=missing-field-initializers)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=missing-field-initializers -fstack-usage)
 target_add_binary_data(${COMPONENT_LIB} "${PINE_ROOT}/assets/fonts/Inter-Regular.ttf" BINARY)
 target_add_binary_data(${COMPONENT_LIB} "${PINE_ROOT}/assets/fonts/Inter-SemiBold.ttf" BINARY)

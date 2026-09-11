@@ -6,12 +6,19 @@ The desktop simulator remains available through the desktop build target.
 
 ## Current status
 
-The firmware was compiled successfully with ESP-IDF 5.5.1 for ESP32-P4 on
-September 11, 2026. The resulting application image is 4,175,216 bytes and leaves
-43% free in the 7 MiB application partition. Desktop unit/service tests and two
-consecutive acceptance launches against the same persistent data directory pass.
+The original v0.2.0 image compiled but failed on a physical Tab5 before app_main:
+`esp_startup_start_app app_startup.c:86 (res == pdTRUE)`. ESP-IDF could not allocate
+the 64 KiB main task stack from internal SRAM after ESP-Hosted initialization.
+PSRAM cannot satisfy this FreeRTOS allocation. The boot-fix build reduces that
+stack to 24 KiB, moves the shell object to the heap, and logs internal free memory,
+largest free block, and main stack high-water headroom at entry, shell startup,
+and once per minute. Task stacks remain in internal memory for flash safety.
 
-The packaged firmware is ready for device validation. Physical display, touch,
+Desktop unit/service tests pass. Firmware builds also emit compiler stack-usage
+reports (`*.su`) for PineOS sources. These report individual function frames;
+device high-water measurements are still needed to validate complete call chains.
+
+The boot-fix package requires device validation. Physical display, touch,
 radio, and power testing still requires a connected M5Stack Tab5 and has not been
 performed by the authoring environment; complete the checklist below before calling
 a particular hardware installation production-validated.

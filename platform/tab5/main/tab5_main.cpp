@@ -8,6 +8,7 @@
 #include "esp_partition.h"
 #include "esp_pthread.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "nvs_flash.h"
 #include "bsp/m5stack_tab5.h"
 #include "freertos/FreeRTOS.h"
@@ -15,11 +16,19 @@
 #include <array>
 #include <algorithm>
 #include <stdexcept>
+#include <memory>
 extern const unsigned char regularStart[] asm("_binary_Inter_Regular_ttf_start");
 extern const unsigned char regularEnd[] asm("_binary_Inter_Regular_ttf_end");
 extern const unsigned char boldStart[] asm("_binary_Inter_SemiBold_ttf_start");
 extern const unsigned char boldEnd[] asm("_binary_Inter_SemiBold_ttf_end");
 namespace {
+void logMemory(const char* stage){
+    constexpr auto caps=MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT;
+    ESP_LOGI("PineTab5","%s: internal free=%u largest=%u main stack remaining=%u bytes",
+        stage,static_cast<unsigned>(heap_caps_get_free_size(caps)),
+        static_cast<unsigned>(heap_caps_get_largest_free_block(caps)),
+        static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+}
 bool blankPartition(){
     auto* part=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_ANY,"pine_data");
     if(!part)return false;
@@ -57,6 +66,7 @@ void pollTouch(Pine::Shell& shell){
 }
 extern "C" void app_main(){
     try{
+        logMemory("app_main entered");
         ESP_ERROR_CHECK(nvs_flash_init());
         auto cfg=esp_pthread_get_default_config();cfg.stack_size=32768;cfg.inherit_cfg=true;
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
@@ -72,12 +82,14 @@ extern "C" void app_main(){
         auto* renderer=SDL_CreateSoftwareRenderer(surface);
         if(!renderer)throw std::runtime_error(SDL_GetError());
         {
-            Pine::Shell shell(nullptr,renderer,config,Pine::createTab5Platform());
+            auto ownedShell=std::make_unique<Pine::Shell>(nullptr,renderer,config,Pine::createTab5Platform());
+            auto& shell=*ownedShell;
             shell.textInput().setForceSoftwareKeyboard(true);
+            logMemory("shell ready");
             auto previous=SDL_GetTicks();std::uint64_t lastClockSave=0;
             while(shell.running()){
                 auto now=SDL_GetTicks();
-                if(now-lastClockSave>=60000){Pine::persistTab5Clock();lastClockSave=now;}
+                if(now-lastClockSave>=60000){Pine::persistTab5Clock();lastClockSave=now;logMemory("running");}
                 pollTouch(shell);shell.update((now-previous)/1000.0);previous=now;shell.render();
                 ESP_ERROR_CHECK(pine_tab5_present(surface->pixels));vTaskDelay(pdMS_TO_TICKS(10));
             }
