@@ -9,3 +9,9 @@
 /.vs/
 *.user
 *.suo
+
+platform/tab5/.deps/
+platform/tab5/build/
+platform/tab5/managed_components/
+platform/tab5/sdkconfig
+platform/tab5/sdkconfig.old

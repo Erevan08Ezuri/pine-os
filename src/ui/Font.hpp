@@ -11,3 +11,5 @@ bool fontsReady();
 void drawText(SDL_Renderer*, float x, float y, const std::string&, float scale, SDL_Color);
 float textWidth(const std::string&, float scale);
 }
+
+namespace Pine { bool initializeEmbeddedFonts(const unsigned char*,std::size_t,const unsigned char*,std::size_t); }
