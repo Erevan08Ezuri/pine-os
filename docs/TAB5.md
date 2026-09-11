@@ -6,8 +6,12 @@ The desktop simulator remains available through the desktop build target.
 
 ## Current status
 
-Under build validation. Do not treat this branch as hardware-qualified until the
-firmware CI succeeds and the device checks below have been performed.
+Build verification is blocked: the local execution environment disconnected, and
+GitHub Actions runs 34626788172 and 34626789301 ended in startup_failure before
+creating any jobs. No passing firmware build or downloadable firmware is available.
+Do not treat this branch as ready to flash until compilation succeeds and the device
+checks below have been performed. The connector exposed no diagnostic for the
+workflow startup failure.
 Physical Tab5 testing has not been performed by the authoring environment.
 
 ## Hardware
@@ -60,7 +64,16 @@ python -m esptool --chip esp32p4 --port COM5 write_flash 0x2000 bootloader/bootl
 The included flasher_args.json is authoritative for offsets. Replace COM5 as needed.
 Regular updates do not write the data partition. Do not use erase-flash for updates.
 First installation replaces the factory P4 application and partition table; export
-anything valuable from the factory application first.
+anything valuable from the factory application first. If first boot reports that
+pine_data cannot mount, old factory data may occupy that region. Only after backing
+up and only for first installation, explicitly clear the new Pine data region:
+
+```sh
+python -m esptool --chip esp32p4 --port COM5 erase_region 0x710000 0x8f0000
+```
+
+This destroys everything in that region, including existing PineOS notes and Finance
+if it has already been used. It is never part of a routine firmware update.
 
 ## First boot
 
