@@ -5,6 +5,10 @@ resizable 720 × 1280 SDL device window and isolates host behavior behind platfo
 interfaces so the shell, applications, configuration, and service logic can move to
 future ARM/Linux hardware unchanged.
 
+## M5Stack Tab5
+
+The native ESP32-P4 firmware target is in `platform/tab5`. See [Tab5 build, flash, and feature status](docs/TAB5.md). Run `build.ps1 tab5` or `sh build.sh tab5` from an ESP-IDF 5.5.1 terminal. The desktop binary cannot be copied directly onto the Tab5.
+
 ## Build and run
 
 Windows PowerShell:

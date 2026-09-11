@@ -35,18 +35,10 @@ if(MSVC)
 endif()
 find_package(Threads REQUIRED)
 
+include(cmake/PineSources.cmake)
 configure_file(src/core/Version.hpp.in generated/Version.hpp @ONLY)
 
-add_library(pine_core
-  src/core/ApplicationManager.cpp src/core/Configuration.cpp src/core/Logger.cpp
-  src/input/TextInputSession.cpp src/input/TextInputManager.cpp
-  src/services/BatteryService.cpp src/services/BluetoothService.cpp src/services/CameraService.cpp
-  src/services/AudioService.cpp src/services/NetworkService.cpp src/services/FileService.cpp
-  src/services/UsbService.cpp src/services/DisplayService.cpp src/services/SystemService.cpp src/services/NotesService.cpp
-  src/services/NotificationService.cpp src/services/SecurityService.cpp
-  src/finance/Money.cpp src/finance/FinanceDatabase.cpp src/finance/FinanceService.cpp
-  src/finance/AnalyticsEngine.cpp src/finance/ImportExportManager.cpp src/finance/FinanceSecurityManager.cpp
-)
+add_library(pine_core ${PINE_CORE_SOURCES})
 target_include_directories(pine_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(pine_core PUBLIC nlohmann_json::nlohmann_json Threads::Threads sqlite3)
 if(MSVC)
@@ -65,13 +57,7 @@ add_library(pine_desktop_platform
 target_include_directories(pine_desktop_platform PUBLIC src)
 target_link_libraries(pine_desktop_platform PUBLIC pine_core)
 
-add_library(pine_ui
-  src/ui/Font.cpp src/ui/Shell.cpp src/ui/HomeScreen.cpp src/ui/StatusBar.cpp
-  src/ui/Navigation.cpp src/ui/DeveloperPanel.cpp
-  src/input/OnScreenKeyboard.cpp
-  src/apps/SettingsApp.cpp src/apps/FilesApp.cpp src/apps/CameraApp.cpp src/apps/BluetoothApp.cpp src/apps/NotesApp.cpp src/apps/FinanceApp.cpp
-  src/apps/finance/FinanceViews.cpp src/apps/finance/FinanceWorkflows.cpp
-)
+add_library(pine_ui ${PINE_UI_SOURCES})
 target_include_directories(pine_ui PUBLIC src third_party)
 target_link_libraries(pine_ui PUBLIC pine_core pine_desktop_platform SDL3::SDL3-static)
 

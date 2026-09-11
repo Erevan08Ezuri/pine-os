@@ -74,6 +74,14 @@ bool initializeFonts(const std::filesystem::path& regular, const std::filesystem
   shutdownFonts();
   return loadFace(regularFace, regular) && loadFace(semiboldFace, semibold);
 }
+bool initializeEmbeddedFonts(const unsigned char* regular,std::size_t regularSize,const unsigned char* bold,std::size_t boldSize) {
+  shutdownFonts();
+  auto load=[](Face& f,const unsigned char* data,std::size_t size) {
+    if(!data || size<12) return false;
+    f.bytes.assign(data,data+size);f.ready=stbtt_InitFont(&f.info,f.bytes.data(),0)!=0;return f.ready;
+  };
+  return load(regularFace,regular,regularSize)&&load(semiboldFace,bold,boldSize);
+}
 void shutdownFonts() {
   for (auto& [key, glyph] : glyphs) if (glyph.texture) SDL_DestroyTexture(glyph.texture);
   glyphs.clear(); cachedRenderer = nullptr; regularFace = {}; semiboldFace = {};

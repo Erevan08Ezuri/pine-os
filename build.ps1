@@ -1,5 +1,9 @@
-param([ValidateSet('desktop')][string]$Target = 'desktop')
+param([ValidateSet('desktop','tab5')][string]$Target = 'desktop')
 $ErrorActionPreference = 'Stop'
+if ($Target -eq 'tab5') {
+  & python (Join-Path $PSScriptRoot 'platform\tab5\tab5.py') build
+  exit $LASTEXITCODE
+}
 $cmakeCommand = Get-Command cmake -ErrorAction SilentlyContinue
 $cmake = if ($cmakeCommand) { $cmakeCommand.Source } else { $null }
 if (-not $cmake) {

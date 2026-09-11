@@ -9,11 +9,19 @@
 #include <iomanip>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#ifdef PINE_TAB5
+#include "esp_random.h"
+#endif
 
 namespace Pine {
 using json=nlohmann::json;
 std::int64_t NotesService::now(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();}
-std::string NotesService::makeId(){static std::atomic_uint64_t sequence{};std::ostringstream out;out<<std::hex<<now()<<'-'<<sequence.fetch_add(1);return out.str();}
+std::string NotesService::makeId(){static std::atomic_uint64_t sequence{};std::ostringstream out;
+#ifdef PINE_TAB5
+static const std::uint64_t bootId=(static_cast<std::uint64_t>(esp_random())<<32)|esp_random();
+out<<std::hex<<bootId<<'-';
+#endif
+out<<std::hex<<now()<<'-'<<sequence.fetch_add(1);return out.str();}
 
 NotesService::NotesService(std::filesystem::path dataRoot):root_(std::move(dataRoot)/"notes"){
   try{std::filesystem::create_directories(root_);load();}catch(const std::exception&e){lastError_=std::string("Notes storage unavailable: ")+e.what();Logger::instance().error("NOTES",lastError_);}worker_=std::thread(&NotesService::workerLoop,this);
