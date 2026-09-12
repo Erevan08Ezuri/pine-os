@@ -16,6 +16,7 @@ esp_err_t esp_bsp_sdl_display_on_off(bool);
 esp_err_t esp_bsp_sdl_touch_init(void);
 esp_err_t esp_bsp_sdl_touch_read(esp_bsp_sdl_touch_info_t*);
 const char* esp_bsp_sdl_get_board_name(void);
+void* pine_tab5_framebuffer(int index);
 esp_err_t pine_tab5_present(const void*);
 #ifdef __cplusplus
 }
