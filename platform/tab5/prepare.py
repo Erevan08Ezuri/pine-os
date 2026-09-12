@@ -28,6 +28,23 @@ def replace_required(path, old, new):
         raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
 
 
+def replace_any_required(path, olds, new):
+    """Replace any known prior form with the desired vendor patch.
+
+    This keeps prepare.py idempotent even when .deps already contains a patch
+    from an older PineOS checkout. It still fails closed if the upstream source
+    changes to an unknown form.
+    """
+    contents = path.read_text(encoding='utf-8')
+    if new in contents:
+        return
+    for old in olds:
+        if old in contents:
+            path.write_text(contents.replace(old, new), encoding='utf-8')
+            return
+    raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
+
+
 def prepare():
     DEPS.mkdir(exist_ok=True)
     for name, (url, sha) in REPOS.items():
@@ -51,18 +68,26 @@ def prepare():
     # which prevents the otherwise supported audio component from compiling.
     replace_required(bsp / 'm5stack_tab5.c', 'ES7120_SEL_MIC', 'ES7210_SEL_MIC')
     # The factory ST712x path is tuned very aggressively (965 Mbps lane rate,
-    # 70 MHz pixel clock). Espressif documents the blue/flickering screen plus
-    # "can't fetch data from external memory fast enough" as a DSI bandwidth
-    # underrun. PineOS uses a full 720x1280 RGB565 framebuffer in PSRAM, so use
-    # a more conservative DSI rate and pixel clock for stability.
-    replace_required(
-        bsp / 'm5stack_tab5.c',
-        '.lane_bit_rate_mbps = 965,  // ST7123/ST7121 lane bitrate',
+    # 70 MHz pixel clock). PineOS has also used 60 MHz / 730 Mbps in earlier
+    # local patches, so accept those known states and normalize to the current
+    # conservative settings. This prevents stale .deps trees from blocking a
+    # clean rebuild while still detecting genuinely unexpected vendor changes.
+    display = bsp / 'm5stack_tab5.c'
+    replace_any_required(
+        display,
+        (
+            '.lane_bit_rate_mbps = 965,  // ST7123/ST7121 lane bitrate',
+            '.lane_bit_rate_mbps = 730,  // PineOS: reduce DSI bandwidth pressure',
+        ),
         '.lane_bit_rate_mbps = 730,  // PineOS: reduce DSI bandwidth pressure',
     )
-    replace_required(
-        bsp / 'm5stack_tab5.c',
-        '.dpi_clock_freq_mhz = 70,  // DPI clock frequency',
+    replace_any_required(
+        display,
+        (
+            '.dpi_clock_freq_mhz = 70,  // DPI clock frequency',
+            '.dpi_clock_freq_mhz = 60,  // PineOS: reduce PSRAM scanout bandwidth',
+            '.dpi_clock_freq_mhz = 50,  // PineOS: conservative pixel clock for PSRAM scanout',
+        ),
         '.dpi_clock_freq_mhz = 50,  // PineOS: conservative pixel clock for PSRAM scanout',
     )
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
