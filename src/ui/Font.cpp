@@ -16,8 +16,9 @@ namespace {
 struct Face { std::vector<unsigned char> bytes; stbtt_fontinfo info{}; bool ready{}; };
 struct Glyph { SDL_Texture* texture{}; int width{}, height{}, xOffset{}, yOffset{}; float advance{}; };
 Face regularFace, semiboldFace;
-std::unordered_map<std::uint64_t, Glyph> glyphs;
-SDL_Renderer* cachedRenderer{};
+// SDL textures belong to one renderer. Tab5 alternates two renderers with its
+// LCD framebuffers, so retain a separate glyph cache for each of them.
+std::unordered_map<SDL_Renderer*,std::unordered_map<std::uint64_t,Glyph>> rendererGlyphs;
 
 bool loadFace(Face& face, const std::filesystem::path& path) {
   std::ifstream input(path, std::ios::binary | std::ios::ate);
@@ -34,7 +35,7 @@ Face& faceFor(float scale) { return scale >= 3.5f && semiboldFace.ready ? semibo
 int pixelHeight(float scale) { return std::max(10, static_cast<int>(std::lround(scale * 8.0f))); }
 
 Glyph& glyphFor(SDL_Renderer* renderer, Face& face, int height, std::uint32_t codepoint) {
-  cachedRenderer = renderer;
+  auto& glyphs=rendererGlyphs[renderer];
   const bool bold = &face == &semiboldFace;
   const std::uint64_t key = (static_cast<std::uint64_t>(bold) << 40) |
                             (static_cast<std::uint64_t>(height) << 21) | codepoint;
@@ -84,8 +85,9 @@ bool initializeEmbeddedFonts(const unsigned char* regular,std::size_t regularSiz
   return load(regularFace,regular,regularSize)&&load(semiboldFace,bold,boldSize);
 }
 void shutdownFonts() {
-  for (auto& [key, glyph] : glyphs) if (glyph.texture) SDL_DestroyTexture(glyph.texture);
-  glyphs.clear(); cachedRenderer = nullptr; regularFace = {}; semiboldFace = {};
+  for(auto& [renderer,glyphs]:rendererGlyphs)
+    for(auto& [key,glyph]:glyphs)if(glyph.texture)SDL_DestroyTexture(glyph.texture);
+  rendererGlyphs.clear(); regularFace = {}; semiboldFace = {};
 }
 bool fontsReady() { return regularFace.ready && semiboldFace.ready; }
 
