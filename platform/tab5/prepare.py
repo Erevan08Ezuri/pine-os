@@ -90,6 +90,18 @@ def prepare():
         ),
         '.dpi_clock_freq_mhz = 50,  // PineOS: conservative pixel clock for PSRAM scanout',
     )
+    # Keep two driver-owned PSRAM framebuffers. Pine renders into the buffer
+    # that is not currently being scanned out and switches buffers at the next
+    # refresh boundary, eliminating the visible old-screen bleed/tearing caused
+    # by modifying a single framebuffer while DSI DMA is reading it.
+    replace_any_required(
+        display,
+        (
+            '        .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,\n        .num_fbs            = 1,\n        .video_timing =\n            {\n                .h_size            = 720,',
+            '        .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,\n        .num_fbs            = 2,\n        .video_timing =\n            {\n                .h_size            = 720,',
+        ),
+        '        .pixel_format       = LCD_COLOR_PIXEL_FORMAT_RGB565,\n        .num_fbs            = 2,\n        .video_timing =\n            {\n                .h_size            = 720,',
+    )
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
     panel.write_text(
         'idf_component_register(SRCS "esp_lcd_st7121.c" INCLUDE_DIRS "include" REQUIRES esp_lcd)\n',
