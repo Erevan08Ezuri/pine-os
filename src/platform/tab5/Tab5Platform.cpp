@@ -1,6 +1,7 @@
 #include "platform/tab5/Tab5Platform.hpp"
 #include "platform/tab5/Tab5Network.hpp"
 #include "platform/tab5/Tab5Camera.hpp"
+#include "platform/tab5/Tab5Bluetooth.hpp"
 #include "bsp/m5stack_tab5.h"
 #include "esp_log.h"
 #include <algorithm>
@@ -10,12 +11,6 @@ namespace {
 class Battery final:public BatteryBackend{
 public:int percentage()const override{return -1;}bool charging()const override{return false;}
     void setPercentage(int)override{}void setCharging(bool)override{}
-};
-class Bluetooth final:public BluetoothBackend{
-    std::vector<BluetoothDevice> devices_;
-public:bool enabled()const override{return false;}void setEnabled(bool)override{}
-    void startScan()override{}const std::vector<BluetoothDevice>& devices()const override{return devices_;}
-    bool connect(const std::string&)override{return false;}bool disconnect(const std::string&)override{return false;}
 };
 class Audio final:public AudioBackend{
     esp_codec_dev_handle_t codec_{};int volume_{75};bool muted_{};
@@ -42,7 +37,7 @@ public:
     }
 };
 class Tab5 final:public Platform{
-    Battery battery_;Tab5Camera camera_;Bluetooth bluetooth_;Audio audio_;Tab5Network network_;Usb usb_;Display display_;
+    Battery battery_;Tab5Camera camera_;Tab5Bluetooth bluetooth_;Audio audio_;Tab5Network network_;Usb usb_;Display display_;
 public:
     std::string name()const override{return "tab5";}
     DeviceInformation deviceInfo()const override{return{"M5Stack Tab5","ESP32-P4 RISC-V"};}

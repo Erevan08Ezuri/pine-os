@@ -86,3 +86,8 @@ antique-gold focus/actions, subtle bronze borders, rounded surfaces, and generou
 targets. Typography uses [Inter](https://rsms.me/inter/) 4.1 by Rasmus Andersson. The
 font license is included at `assets/fonts/LICENSE-Inter.txt`. TrueType rasterization uses
 `stb_truetype.h` from the public-domain/MIT-licensed stb libraries.
+# Bank connections
+
+Finance now has a separate **Accounts → Linked Banks** screen for Capital One and Chase via a private
+Plaid bridge. Start with Sandbox; real accounts require server setup and Plaid Production access.
+See [bank linking setup](docs/BANK-LINKING.md).

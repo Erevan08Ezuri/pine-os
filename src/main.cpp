@@ -23,7 +23,12 @@ int main(int argc,char**argv){
   if(!smokeOutput.empty()){
     std::filesystem::create_directories(smokeOutput);bool passed=true;
     auto shot=[&](const std::string&name){shell.render();for(int i=0;i<14;++i){SDL_Delay(16);shell.update(.016);}if(!shell.captureFrame(smokeOutput/(name+".bmp"))){Logger::instance().error("UI",SDL_GetError());passed=false;}};
-    shot("01-boot");shell.acceptanceSkipBoot();shot("02-home");passed&=shell.acceptanceLaunch("settings");shell.audio().setVolume(35);shell.network().setWifiEnabled(false);shell.persist();shot("03-settings");
+    shot("01-boot");shell.acceptanceSkipBoot();
+    while(shell.deviceLock().busy()){SDL_Delay(5);shell.update(.005);}
+    shot("00-device-pin");passed&=shell.deviceLock().unlock("123456",SDL_GetTicks());
+    while(shell.deviceLock().busy()){SDL_Delay(5);shell.update(.005);}
+    passed&=!shell.deviceLock().locked();shot("02-home");passed&=shell.acceptanceLaunch("settings");shell.audio().setVolume(35);shell.network().setWifiEnabled(false);shell.persist();shot("03-settings");shell.network().setWifiEnabled(true);
+    SDL_Event wifiTap{};wifiTap.type=SDL_EVENT_MOUSE_BUTTON_UP;wifiTap.button.button=SDL_BUTTON_LEFT;wifiTap.button.x=370;wifiTap.button.y=320;shell.handleEvent(wifiTap);shell.render();shot("03a-wifi-networks");
     passed&=shell.acceptanceLaunch("bluetooth");shell.bluetooth().setEnabled(true);shell.bluetooth().startScan();passed&=shell.bluetooth().connect("pine-buds");shot("04-bluetooth");
     passed&=shell.acceptanceLaunch("camera");auto photo=shell.camera().capturePhoto();passed&=!photo.empty()&&std::filesystem::exists(photo);shot("05-camera");
     passed&=shell.acceptanceLaunch("files");shell.acceptancePath("DCIM");shot("06-files-dcim");

@@ -15,6 +15,8 @@ class FirmwareConfigTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        defaults = Path(tab5.__file__).parent / 'sdkconfig.defaults'
+        (self.root / 'sdkconfig.defaults').write_text(defaults.read_text())
         self.valid = '\n'.join(('CONFIG_IDF_EXPERIMENTAL_FEATURES=y',
                                'CONFIG_SPIRAM_MODE_HEX=y',
                                'CONFIG_SPIRAM_SPEED_200M=y',
@@ -25,6 +27,7 @@ class FirmwareConfigTests(unittest.TestCase):
                                'CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y',
                                'CONFIG_ESP_VIDEO_ENABLE_ISP=y',
                                'CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE=y'))
+        self.valid += '\n' + '\n'.join(f'{key}={value}' for key, value in tab5.bluetooth_config(self.root).items() if value != 'n')
 
     def config(self, text):
         (self.root / 'sdkconfig').write_text(text)
@@ -40,6 +43,32 @@ class FirmwareConfigTests(unittest.TestCase):
 
     def test_xip_rejected(self):
         self.config(self.valid + '\nCONFIG_SPIRAM_XIP_FROM_PSRAM=y')
+        with self.assertRaises(RuntimeError):
+            tab5.validate_generated_config(self.root)
+
+    def test_disabled_bluetooth_rejected(self):
+        self.config(self.valid.replace('CONFIG_BT_ENABLED=y', '# CONFIG_BT_ENABLED is not set'))
+        with self.assertRaises(RuntimeError):
+            tab5.validate_generated_config(self.root)
+
+    def test_wrong_transport_rejected(self):
+        self.config(self.valid + '\nCONFIG_BT_NIMBLE_TRANSPORT_UART=y')
+        with self.assertRaises(RuntimeError):
+            tab5.validate_generated_config(self.root)
+
+    def test_old_config_migrated_without_losing_settings(self):
+        original = '# CONFIG_BT_ENABLED is not set\nCONFIG_CUSTOM_DISPLAY=42\n'
+        self.config(original)
+        tab5.migrate_bluetooth_config(self.root)
+        first = (self.root/'sdkconfig').read_text()
+        self.assertIn('CONFIG_BT_ENABLED=y', first)
+        self.assertIn('CONFIG_CUSTOM_DISPLAY=42', first)
+        self.assertEqual((self.root/'sdkconfig.before-bluetooth').read_text(), original)
+        tab5.migrate_bluetooth_config(self.root)
+        self.assertEqual((self.root/'sdkconfig').read_text(), first)
+
+    def test_camera_config_required(self):
+        self.config(self.valid.replace('CONFIG_CAMERA_SC202CS=y', '# CONFIG_CAMERA_SC202CS is not set'))
         with self.assertRaises(RuntimeError):
             tab5.validate_generated_config(self.root)
 
