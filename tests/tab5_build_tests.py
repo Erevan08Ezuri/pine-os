@@ -17,7 +17,14 @@ class FirmwareConfigTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.valid = '\n'.join(('CONFIG_IDF_EXPERIMENTAL_FEATURES=y',
                                'CONFIG_SPIRAM_MODE_HEX=y',
-                               'CONFIG_SPIRAM_SPEED_200M=y'))
+                               'CONFIG_SPIRAM_SPEED_200M=y',
+                               'CONFIG_CAMERA_SC202CS=y',
+                               'CONFIG_CAMERA_SC202CS_AUTO_DETECT=y',
+                               'CONFIG_CAMERA_SC202CS_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y',
+                               'CONFIG_CAMERA_SC202CS_MIPI_RAW8_1280x720_30FPS=y',
+                               'CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y',
+                               'CONFIG_ESP_VIDEO_ENABLE_ISP=y',
+                               'CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE=y'))
 
     def config(self, text):
         (self.root / 'sdkconfig').write_text(text)
