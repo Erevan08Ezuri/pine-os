@@ -50,15 +50,20 @@ def prepare():
     # The pinned factory BSP refers to ES7210 microphone selectors as ES7120,
     # which prevents the otherwise supported audio component from compiling.
     replace_required(bsp / 'm5stack_tab5.c', 'ES7120_SEL_MIC', 'ES7210_SEL_MIC')
-    # The factory ST712x path runs the 720x1280 DPI scanout at 70 MHz. On the
-    # ESP32-P4 this can repeatedly underrun when the framebuffer lives in
-    # external PSRAM while PineOS is also rendering/copying full RGB565 frames.
-    # 60 MHz keeps the same porch/timing geometry but lowers sustained memory
-    # bandwidth enough to make scanout substantially more tolerant.
+    # The factory ST712x path is tuned very aggressively (965 Mbps lane rate,
+    # 70 MHz pixel clock). Espressif documents the blue/flickering screen plus
+    # "can't fetch data from external memory fast enough" as a DSI bandwidth
+    # underrun. PineOS uses a full 720x1280 RGB565 framebuffer in PSRAM, so use
+    # a more conservative DSI rate and pixel clock for stability.
+    replace_required(
+        bsp / 'm5stack_tab5.c',
+        '.lane_bit_rate_mbps = 965,  // ST7123/ST7121 lane bitrate',
+        '.lane_bit_rate_mbps = 730,  // PineOS: reduce DSI bandwidth pressure',
+    )
     replace_required(
         bsp / 'm5stack_tab5.c',
         '.dpi_clock_freq_mhz = 70,  // DPI clock frequency',
-        '.dpi_clock_freq_mhz = 60,  // PineOS: reduce PSRAM scanout bandwidth',
+        '.dpi_clock_freq_mhz = 50,  // PineOS: conservative pixel clock for PSRAM scanout',
     )
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
     panel.write_text(
