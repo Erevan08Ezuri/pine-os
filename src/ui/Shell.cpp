@@ -35,7 +35,7 @@ Shell::Shell(SDL_Window*w,SDL_Renderer*r,Configuration&c,std::unique_ptr<Platfor
 }
 Shell::~Shell(){commitNote();textInput_.blur();notes_.flush();camera_.stop();persist();}
 void Shell::persist(){auto&s=config_.settings();s.volume=audio_.volume();s.muted=audio_.muted();s.brightness=display_.brightness();s.bluetoothEnabled=bluetooth_.enabled();s.wifiEnabled=network_.wifiEnabled();try{config_.save();}catch(const std::exception&e){Logger::instance().error("CONFIG",e.what());}}
-bool Shell::hit(Rect r)const{return click_&&clickX_>=r.x&&clickX_<=r.x+r.w&&clickY_>=r.y&&clickY_<=r.y+r.h;}
+bool Shell::hit(Rect r)const{if(renderer_&&SDL_RenderClipEnabled(renderer_)){SDL_Rect clip{};SDL_GetRenderClipRect(renderer_,&clip);if(clickX_<clip.x||clickX_>=clip.x+clip.w||clickY_<clip.y||clickY_>=clip.y+clip.h)return false;}return (!(promptAction_)||renderingPrompt_)&&(!hasAppOverlay()||renderingOverlay_||renderingPrompt_)&&click_&&clickX_>=r.x&&clickX_<=r.x+r.w&&clickY_>=r.y&&clickY_<=r.y+r.h;}
 void Shell::handleEvent(const SDL_Event&e){
   if(e.type==SDL_EVENT_QUIT){running_=false;return;}
   SDL_Event event=e;if(renderer_)SDL_ConvertEventToRenderCoordinates(renderer_,&event);const auto now=SDL_GetTicks();
@@ -75,6 +75,7 @@ bool Shell::launchApp(const std::string&id){
   if(apps_.currentId()=="finance"&&id!="finance")financeSecurity_.onBackground(SDL_GetTicks());
   if(apps_.currentId()!=id)toast_.clear();
   dismissInput();
+  cancelPrompts();
   deleteNotePrompt_=false;
   const bool opened=apps_.launch(id);
   if(opened&&id=="finance"){
@@ -84,7 +85,14 @@ bool Shell::launchApp(const std::string&id){
   }
   return opened;
 }
-void Shell::goHome(){commitNote();if(apps_.currentId()=="finance")financeSecurity_.onBackground(SDL_GetTicks());dismissInput();deleteNotePrompt_=false;if(notesView_==NotesView::Editor)notesView_=NotesView::List;apps_.home();}
+void Shell::goHome(){cancelPrompts();commitNote();if(apps_.currentId()=="finance")financeSecurity_.onBackground(SDL_GetTicks());dismissInput();deleteNotePrompt_=false;if(notesView_==NotesView::Editor)notesView_=NotesView::List;apps_.home();}
+bool Shell::hasAppOverlay()const {
+  return deleteNotePrompt_||financeQuickMenu_||financeTypePicker_||financeTransactionPicker_||financeTransferPicker_||financeFilterPrompt_||financeDashboardPrompt_||financeDeletePrompt_||financeArchivePrompt_||financeErasePrompt_||financeRestorePrompt_||financeImportPrompt_;
+}
+void Shell::cancelPrompts(){
+  dismissInput();promptAction_={};promptSession_.reset();promptText_.clear();
+  deleteNotePrompt_=financeQuickMenu_=financeTypePicker_=financeTransactionPicker_=financeTransferPicker_=financeFilterPrompt_=financeDashboardPrompt_=financeDeletePrompt_=financeArchivePrompt_=financeErasePrompt_=financeRestorePrompt_=financeImportPrompt_=false;
+}
 void Shell::focusInput(TextInputSession&session){textInput_.focus(session,SDL_GetTicks(),true);if(window_)SDL_StartTextInput(window_);}
 void Shell::dismissInput(){textInput_.blur();if(window_)SDL_StopTextInput(window_);}
 void Shell::openTextPrompt(const std::string&title,std::string initial,std::function<void(const std::string&)>action,InputType type,std::size_t maxLength){
@@ -93,9 +101,10 @@ void Shell::openTextPrompt(const std::string&title,std::string initial,std::func
   promptSession_=std::make_unique<TextInputSession>(promptText_,type,TextInputSession::Callback{},[this]{if(promptAction_&&!promptText_.empty()){auto action=std::move(promptAction_);auto value=promptText_;promptAction_={};dismissInput();action(value);}},TextInputSession::Callback{},maxLength);focusInput(*promptSession_);
 }
 void Shell::renderPrompt(){
+  renderingPrompt_=true;
   SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_BLEND);SDL_SetRenderDrawColor(renderer_,0,0,0,210);SDL_FRect dim{0,0,720,1280};SDL_RenderFillRect(renderer_,&dim);
   const float top=std::min(430.0f,textInput_.safeContentBottom(1280)-300);panel({65,top,590,270});label(100,top+38,promptTitle_,4,Theme::Gold);drawTextField({100,top+105,520,65},*promptSession_,"ENTER TEXT");
   if(button({100,top+190,245,60},"CANCEL")){promptAction_={};dismissInput();promptSession_.reset();}
-  if(button({375,top+190,245,60},"SAVE",true)&&!promptText_.empty()){auto action=std::move(promptAction_);auto value=promptText_;promptAction_={};dismissInput();promptSession_.reset();action(value);}SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);
+  if(button({375,top+190,245,60},"SAVE",true)&&!promptText_.empty()){auto action=std::move(promptAction_);auto value=promptText_;promptAction_={};dismissInput();promptSession_.reset();action(value);}SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);renderingPrompt_=false;
 }
 }

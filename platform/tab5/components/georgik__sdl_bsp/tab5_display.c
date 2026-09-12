@@ -11,6 +11,12 @@ static esp_lcd_touch_handle_t touch;
 static SemaphoreHandle_t transfer_done;
 static bool sitronix;
 static bool transfer_finished(esp_lcd_panel_handle_t panel,esp_lcd_dpi_panel_event_data_t* event,void* ctx) {
+    // IDF calls this from the DMA ISR, but CPU/direct framebuffer paths call
+    // it synchronously from draw_bitmap. Use the matching FreeRTOS API.
+    if(!xPortInIsrContext()) {
+        xSemaphoreGive(transfer_done);
+        return false;
+    }
     BaseType_t wake=pdFALSE;
     xSemaphoreGiveFromISR(transfer_done,&wake);
     return wake==pdTRUE;
@@ -37,6 +43,7 @@ esp_err_t esp_bsp_sdl_init(esp_bsp_sdl_display_config_t* cfg,esp_lcd_panel_handl
     *panel=lcd.panel;*io=lcd.io;return ESP_OK;
 }
 esp_err_t pine_tab5_present(const void* pixels) {
+    if(!lcd.panel||!transfer_done||!pixels)return ESP_ERR_INVALID_STATE;
     esp_err_t err=esp_lcd_panel_draw_bitmap(lcd.panel,0,0,720,1280,pixels);
     if(err!=ESP_OK) return err;
     return xSemaphoreTake(transfer_done,pdMS_TO_TICKS(1000))?ESP_OK:ESP_ERR_TIMEOUT;

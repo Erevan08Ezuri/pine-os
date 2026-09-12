@@ -52,13 +52,15 @@ public:
 private:
   enum class NotesView{List,Editor};
   enum class FinanceView{Home,Accounts,AccountDetail,Activity,Budget,Goals,More,Bills,Subscriptions,Analytics,Calculator,Categories,Settings};
+  bool hasAppOverlay()const;void cancelPrompts();
   void renderBoot();void renderShell();void renderHome();void renderStatusBar();void renderNavigation();void renderDeveloperPanel();void renderPrompt();bool hit(Rect)const;void toast(std::string);
   void beginNewNote();void openNote(const std::string&);void commitNote();void closeNoteEditor();void confirmDeleteNote();void drawTextField(Rect,TextInputSession&,const std::string&,bool multiline=false);std::size_t cursorAt(Rect,const TextInputSession&,float,float,bool multiline);
   void renderFinanceHeader(const std::string&);void renderFinanceNav();void renderFinanceHome();void renderFinanceAccounts();void renderFinanceAccountDetail();void renderFinanceActivity();void renderFinanceBudgets();void renderFinanceGoals();void renderFinanceMore();void renderFinanceBills();void renderFinanceSubscriptions();void renderFinanceAnalytics();void renderFinanceCalculator();void renderFinanceCategories();void renderFinanceSettings();void renderFinanceOverlay();
-  void beginFinanceAccount(const std::string&);void beginFinanceTransaction();void beginFinanceTransfer();void beginFinanceBudget();void beginFinanceBill();void beginFinanceSubscription();void beginFinanceGoal();void beginFinanceImport();void beginFinanceUnlock();void financeNotifyBills();std::string financeAmount(std::int64_t,const std::string&currency="USD",bool signedValue=false)const;
+  void beginFinanceAccount(const std::string&);void beginFinanceTransaction();void beginFinanceTransfer();void beginFinanceBudget();void beginFinanceBill();void beginFinanceSubscription();void beginFinanceGoal();void beginFinanceImport();void beginFinanceUnlock();void financeNotifyBills();std::string financeAmount(std::int64_t,const std::string&currency="",bool signedValue=false)const;
   SDL_Window*window_;SDL_Renderer*renderer_;Configuration&config_;std::unique_ptr<Platform>platform_;ApplicationManager apps_;
   BatteryService battery_;CameraService camera_;BluetoothService bluetooth_;AudioService audio_;NetworkService network_;UsbService usb_;DisplayService display_;FileService files_;SystemService system_;NotesService notes_;NotificationService notifications_;SecurityService security_;Finance::FinanceService finance_;Finance::FinanceSecurityManager financeSecurity_;Finance::ImportExportManager financeFiles_;
   TextInputManager textInput_;OnScreenKeyboard keyboard_;
+  bool renderingPrompt_{},renderingOverlay_{};
   bool running_{true},developerOpen_{false},click_{false},skipBoot_{false},pointerDown_{false},pointerDragged_{false};float clickX_{},clickY_{},pointerY_{};std::uint64_t started_{},lastFrame_{};double fps_{0};std::string toast_;std::uint64_t toastUntil_{};
   std::filesystem::path currentPath_;std::optional<FileEntry>selected_;std::string promptTitle_,promptText_;std::function<void(const std::string&)>promptAction_;std::unique_ptr<TextInputSession>promptSession_;
   NotesView notesView_{NotesView::List};std::string notesSearch_,editingNoteId_,noteTitle_,noteBody_;bool notePinned_{},deleteNotePrompt_{},noteHasChanges_{};float notesScroll_{},bodyScroll_{};Debouncer noteSaveDebounce_{750};

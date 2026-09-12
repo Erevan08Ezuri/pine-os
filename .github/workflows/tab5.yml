@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           . /opt/esp/idf/export.sh
-          idf.py -C platform/tab5 build
+          python platform/tab5/tab5.py build
           idf.py -C platform/tab5 size
       - name: Package firmware
         shell: bash
@@ -53,11 +53,29 @@ jobs:
       - uses: actions/checkout@v4
       - name: Configure and build desktop
         run: |
-          cmake -S . -B build/desktop -DCMAKE_BUILD_TYPE=Release -DSDL_X11=OFF -DSDL_WAYLAND=OFF
+          cmake -S . -B build/desktop -DCMAKE_BUILD_TYPE=Release -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_UNIX_CONSOLE_BUILD=ON
           cmake --build build/desktop --parallel 2
           ctest --test-dir build/desktop --output-on-failure
+      - name: Render desktop acceptance scenarios
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: build/desktop/bin/pine --data=build/acceptance-data --acceptance=build/acceptance-images
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Desktop-acceptance-images
+          path: build/acceptance-images/
       - name: Exercise Tab5 SQLite VFS on host
         run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'platform/tab5')
+          from prepare import replace_required
+          replace_required(Path('build/desktop/_deps/sqlite-src/sqlite3.c'),
+              '#if SQLITE_THREADSAFE && !defined(SQLITE_MUTEX_NOOP)',
+              '#if SQLITE_THREADSAFE && !defined(SQLITE_MUTEX_NOOP) && !defined(SQLITE_MUTEX_PTHREADS)')
+          PYTHON
           cc -O1 -DSQLITE_OS_OTHER=1 -DSQLITE_THREADSAFE=1 -DSQLITE_MUTEX_PTHREADS=1 -DSQLITE_OMIT_LOAD_EXTENSION=1 -DSQLITE_OMIT_WAL=1 -DSQLITE_TEMP_STORE=3 -c build/desktop/_deps/sqlite-src/sqlite3.c -o /tmp/pine_sqlite.o
           c++ -std=c++20 -Isrc -Ibuild/desktop/_deps/sqlite-src platform/tab5/components/pine_sqlite/pine_vfs.cpp tests/tab5_vfs_tests.cpp /tmp/pine_sqlite.o -lpthread -o /tmp/pine_vfs_tests
           /tmp/pine_vfs_tests

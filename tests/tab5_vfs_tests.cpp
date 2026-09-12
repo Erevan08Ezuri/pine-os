@@ -16,6 +16,12 @@ int main(){
     sql(a,"BEGIN IMMEDIATE;");
     require(sqlite3_exec(b,"BEGIN IMMEDIATE;",nullptr,nullptr,nullptr)==SQLITE_BUSY,"writer lock");
     sql(a,"ROLLBACK;");
+    sqlite3* alias{};
+    const auto aliasPath=(root/"."/"finance.db").string();
+    require(sqlite3_open(aliasPath.c_str(),&alias)==SQLITE_OK,"alias connection");
+    sql(a,"BEGIN IMMEDIATE;");
+    require(sqlite3_exec(alias,"BEGIN IMMEDIATE;",nullptr,nullptr,nullptr)==SQLITE_BUSY,"path alias must not bypass writer lock");
+    sql(a,"ROLLBACK;");sqlite3_close(alias);
     sql(b,"BEGIN;SELECT * FROM t;");
     sql(a,"BEGIN IMMEDIATE;UPDATE t SET v=42;");
     require(sqlite3_exec(a,"COMMIT;",nullptr,nullptr,nullptr)==SQLITE_BUSY,"reader blocks commit");
