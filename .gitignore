@@ -18,3 +18,11 @@ platform/tab5/sdkconfig.old
 __pycache__/
 *.pyc
 /dist/
+
+# Bank credentials and encrypted private runtime data
+.env
+.env.*
+!*.example
+/server/bank_bridge/private/
+**/bank-connection.json
+.venv/

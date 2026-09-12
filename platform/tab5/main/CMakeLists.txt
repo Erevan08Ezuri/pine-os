@@ -11,7 +11,7 @@ idf_component_register(
   INCLUDE_DIRS "${PINE_ROOT}/src" "${PINE_ROOT}/third_party"
     "${CMAKE_CURRENT_BINARY_DIR}" "../.deps/json/single_include"
   REQUIRES sdl georgik__sdl_bsp pine_sqlite littlefs nvs_flash pthread
-    m5stack_tab5 esp_lcd_touch esp_timer esp_system esp_wifi esp_wifi_remote esp_netif esp_event lwip esp_video)
+    esp_http_client mbedtls m5stack_tab5 esp_lcd_touch esp_timer esp_system esp_wifi esp_wifi_remote esp_netif esp_event lwip esp_video)
 target_compile_features(${COMPONENT_LIB} PUBLIC cxx_std_20)
 target_compile_definitions(${COMPONENT_LIB} PUBLIC PINE_TAB5=1)
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=missing-field-initializers -fstack-usage)
