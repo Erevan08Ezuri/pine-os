@@ -1,5 +1,6 @@
 #include "apps/Apps.hpp"
 #include "core/Logger.hpp"
+#include "core/Utf8.hpp"
 #include "core/UiContext.hpp"
 #include "ui/Font.hpp"
 #include "ui/Shell.hpp"
@@ -15,7 +16,7 @@ namespace {
 struct TextLine{std::size_t start{},end{};std::string text;};
 std::vector<TextLine>wrapText(const std::string&value,float width,float scale){
   std::vector<TextLine>lines;std::size_t start=0;std::string current;
-  for(std::size_t i=0;i<value.size();++i){const char c=value[i];if(c=='\n'){lines.push_back({start,i,current});start=i+1;current.clear();continue;}auto candidate=current+c;if(!current.empty()&&textWidth(candidate,scale)>width){lines.push_back({start,i,current});start=i;current.assign(1,c);}else current=std::move(candidate);}
+  for(std::size_t i=0;i<value.size();){const auto offset=i;auto c=nextUtf8(value,i);if(c=='\n'){lines.push_back({start,offset,current});start=i;current.clear();continue;}auto bytes=value.substr(offset,i-offset);auto candidate=current+bytes;if(!current.empty()&&textWidth(candidate,scale)>width){lines.push_back({start,offset,current});start=offset;current=bytes;}else current=std::move(candidate);}
   lines.push_back({start,value.size(),current});return lines;
 }
 std::string preview(std::string text){for(char&c:text)if(c=='\n'||c=='\r'||c=='\t')c=' ';if(text.size()>72)text=text.substr(0,69)+"...";return text.empty()?"EMPTY NOTE":text;}
@@ -58,6 +59,6 @@ void Shell::renderNotes(){
   label(45,92,"NOTE EDITOR",4.5f,Theme::Gold);if(button({40,145,125,54},"BACK")){closeNoteEditor();return;}if(button({180,145,190,54},notePinned_?"UNPIN":"PIN",notePinned_)){notePinned_=!notePinned_;noteHasChanges_=true;commitNote();}if(button({515,145,165,54},"DELETE")){dismissInput();deleteNotePrompt_=true;}
   const Rect title{40,220,640,68};drawTextField(title,*titleSession_,"NOTE TITLE");const float bodyBottom=std::min(1165.0f,textInput_.safeContentBottom(1280)-18);const Rect body{40,305,640,std::max(170.0f,bodyBottom-305)};drawTextField(body,*bodySession_,"START WRITING...",true);
   if(hit(title)){titleSession_->setCursor(cursorAt(title,*titleSession_,clickX_,clickY_,false));focusInput(*titleSession_);}else if(hit(body)){bodySession_->setCursor(cursorAt(body,*bodySession_,clickX_,clickY_,true));focusInput(*bodySession_);}else if(click_&&!deleteNotePrompt_)dismissInput();
-  if(deleteNotePrompt_){SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_BLEND);SDL_SetRenderDrawColor(renderer_,0,0,0,215);SDL_FRect dim{0,72,720,1118};SDL_RenderFillRect(renderer_,&dim);panel({75,410,570,255});label(145,458,"DELETE THIS NOTE?",4,Theme::Gold);sublabel(150,515,"THIS ACTION CANNOT BE UNDONE");if(button({110,575,220,62},"CANCEL"))deleteNotePrompt_=false;if(button({390,575,220,62},"DELETE",true))confirmDeleteNote();SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);}
+  if(deleteNotePrompt_){renderingOverlay_=true;SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_BLEND);SDL_SetRenderDrawColor(renderer_,0,0,0,215);SDL_FRect dim{0,72,720,1118};SDL_RenderFillRect(renderer_,&dim);panel({75,410,570,255});label(145,458,"DELETE THIS NOTE?",4,Theme::Gold);sublabel(150,515,"THIS ACTION CANNOT BE UNDONE");if(button({110,575,220,62},"CANCEL"))deleteNotePrompt_=false;if(button({390,575,220,62},"DELETE",true))confirmDeleteNote();SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);renderingOverlay_=false;}
 }
 }

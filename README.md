@@ -34,6 +34,10 @@ type system works without installing a font on the host computer.
 
 ## Test
 
+See [the September 12 audit and validation report](docs/AUDIT-2026-09-12.md)
+for the repaired defects, sanitizer checks, simulator scenarios, and remaining
+physical-device checks.
+
 ```sh
 ctest --test-dir build/desktop --output-on-failure
 ```

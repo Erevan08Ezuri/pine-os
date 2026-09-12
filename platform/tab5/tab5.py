@@ -31,6 +31,7 @@ def package_firmware(tab5_dir: Path) -> Path:
         (required[1], 'partition_table/partition-table.bin'),
         (required[2], 'pine_tab5.bin'),
         (required[3], 'flasher_args.json'),
+        (tab5_dir.parent.parent / 'docs' / 'TAB5.md', 'README.md'),
     ]
 
     with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
@@ -47,7 +48,7 @@ def validate_generated_config(tab5_dir: Path) -> None:
     if not sdkconfig.is_file():
         raise RuntimeError('Generated sdkconfig is missing after build')
 
-    text = sdkconfig.read_text(encoding='utf-8', errors='replace')
+    text = set(sdkconfig.read_text(encoding='utf-8', errors='replace').splitlines())
     required = (
         'CONFIG_IDF_EXPERIMENTAL_FEATURES=y',
         'CONFIG_SPIRAM_MODE_HEX=y',
@@ -82,12 +83,24 @@ def main():
     if args.action in ('flash', 'monitor') and not args.port:
         parser.error('--port is required to select the intended device')
 
-    prepare()
+    if args.action != 'monitor':
+        prepare()
     tab5_dir = Path(__file__).resolve().parent
     command = [sys.executable, idf, '-C', str(tab5_dir)]
     if args.port:
         command += ['-p', args.port]
 
+    # idf.py flash can implicitly build. Validate that completed build before
+    # allowing any bytes to reach the device, just as the packaging path does.
+    if args.action == 'flash':
+        result = subprocess.run(command + ['build'])
+        if result.returncode != 0:
+            return result.returncode
+        try:
+            validate_generated_config(tab5_dir)
+        except RuntimeError as exc:
+            print(f'[PINE][FLASH][ERROR] {exc}', file=sys.stderr)
+            return 1
     result = subprocess.run(command + [args.action])
     if result.returncode != 0:
         return result.returncode

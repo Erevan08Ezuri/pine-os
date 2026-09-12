@@ -1,0 +1,54 @@
+"""Regression checks for the firmware packaging/flash safety gate."""
+import importlib.util
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'platform/tab5'))
+import tab5
+
+
+class FirmwareConfigTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.valid = '\n'.join(('CONFIG_IDF_EXPERIMENTAL_FEATURES=y',
+                               'CONFIG_SPIRAM_MODE_HEX=y',
+                               'CONFIG_SPIRAM_SPEED_200M=y'))
+
+    def config(self, text):
+        (self.root / 'sdkconfig').write_text(text)
+
+    def test_valid_config(self):
+        self.config(self.valid)
+        tab5.validate_generated_config(self.root)
+
+    def test_comments_do_not_count_as_enabled_config(self):
+        self.config(self.valid.replace('CONFIG_SPIRAM_SPEED_200M=y', '# CONFIG_SPIRAM_SPEED_200M=y'))
+        with self.assertRaises(RuntimeError):
+            tab5.validate_generated_config(self.root)
+
+    def test_xip_rejected(self):
+        self.config(self.valid + '\nCONFIG_SPIRAM_XIP_FROM_PSRAM=y')
+        with self.assertRaises(RuntimeError):
+            tab5.validate_generated_config(self.root)
+
+    def test_invalid_build_never_reaches_flash(self):
+        self.config('CONFIG_SPIRAM_SPEED_20M=y')
+        with patch.object(tab5, '__file__', str(self.root/'tab5.py')), \
+             patch.object(tab5, 'prepare'), \
+             patch.object(tab5.shutil, 'which', return_value='/idf/idf.py'), \
+             patch.dict(tab5.os.environ, {'IDF_PATH': '/idf'}), \
+             patch.object(sys, 'argv', ['tab5.py', 'flash', '--port', 'COM5']), \
+             patch.object(tab5.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            self.assertEqual(tab5.main(), 1)
+            self.assertEqual(len(run.call_args_list), 1)
+            self.assertEqual(run.call_args.args[0][-1], 'build')
+
+
+if __name__ == '__main__':
+    unittest.main()

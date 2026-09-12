@@ -1,4 +1,5 @@
 #include "ui/Font.hpp"
+#include "core/Utf8.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -32,11 +33,11 @@ bool loadFace(Face& face, const std::filesystem::path& path) {
 Face& faceFor(float scale) { return scale >= 3.5f && semiboldFace.ready ? semiboldFace : regularFace; }
 int pixelHeight(float scale) { return std::max(10, static_cast<int>(std::lround(scale * 8.0f))); }
 
-Glyph& glyphFor(SDL_Renderer* renderer, Face& face, int height, unsigned char codepoint) {
+Glyph& glyphFor(SDL_Renderer* renderer, Face& face, int height, std::uint32_t codepoint) {
   cachedRenderer = renderer;
   const bool bold = &face == &semiboldFace;
   const std::uint64_t key = (static_cast<std::uint64_t>(bold) << 40) |
-                            (static_cast<std::uint64_t>(height) << 16) | codepoint;
+                            (static_cast<std::uint64_t>(height) << 21) | codepoint;
   if (auto found = glyphs.find(key); found != glyphs.end()) return found->second;
   Glyph glyph;
   const float fontScale = stbtt_ScaleForPixelHeight(&face.info, static_cast<float>(height));
@@ -97,8 +98,8 @@ void drawText(SDL_Renderer* renderer, float x, float y, const std::string& text,
   stbtt_GetFontVMetrics(&face.info, &ascent, &descent, &gap);
   const float baseline = y + ascent * fontScale;
   float pen = x;
-  for (std::size_t i = 0; i < text.size(); ++i) {
-    const auto codepoint = static_cast<unsigned char>(text[i]);
+  for (std::size_t i = 0; i < text.size();) {
+    const auto codepoint = nextUtf8(text,i);
     auto& glyph = glyphFor(renderer, face, height, codepoint);
     if (glyph.texture) {
       SDL_SetTextureColorMod(glyph.texture, color.r, color.g, color.b);
@@ -108,8 +109,7 @@ void drawText(SDL_Renderer* renderer, float x, float y, const std::string& text,
       SDL_RenderTexture(renderer, glyph.texture, nullptr, &target);
     }
     pen += glyph.advance;
-    if (i + 1 < text.size()) pen += stbtt_GetCodepointKernAdvance(&face.info, codepoint,
-      static_cast<unsigned char>(text[i + 1])) * fontScale;
+    if (i < text.size()) {auto next=i;pen += stbtt_GetCodepointKernAdvance(&face.info,codepoint,nextUtf8(text,next))*fontScale;}
   }
 }
 
@@ -118,13 +118,12 @@ float textWidth(const std::string& text, float scale) {
   Face& face = faceFor(scale);
   const float fontScale = stbtt_ScaleForPixelHeight(&face.info, static_cast<float>(pixelHeight(scale)));
   float width = 0;
-  for (std::size_t i = 0; i < text.size(); ++i) {
+  for (std::size_t i = 0; i < text.size();) {
     int advance{}, bearing{};
-    const auto codepoint = static_cast<unsigned char>(text[i]);
+    const auto codepoint = nextUtf8(text,i);
     stbtt_GetCodepointHMetrics(&face.info, codepoint, &advance, &bearing);
     width += advance * fontScale;
-    if (i + 1 < text.size()) width += stbtt_GetCodepointKernAdvance(&face.info, codepoint,
-      static_cast<unsigned char>(text[i + 1])) * fontScale;
+    if (i < text.size()) {auto next=i;width += stbtt_GetCodepointKernAdvance(&face.info,codepoint,nextUtf8(text,next))*fontScale;}
   }
   return width;
 }

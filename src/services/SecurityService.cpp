@@ -1,4 +1,7 @@
 #include "services/SecurityService.hpp"
+#include "core/AtomicFile.hpp"
+#include <algorithm>
+#include <cctype>
 #include <nlohmann/json.hpp>
 #include <array>
 #include <chrono>
@@ -17,10 +20,10 @@ h=sha256(h+salt+pin);
 if((i&63)==0)vTaskDelay(1);
 #endif
 }return h;}}
-SecurityService::SecurityService(std::filesystem::path root):path_(root/"security.json"){std::filesystem::create_directories(root);load();}void SecurityService::load(){try{if(!std::filesystem::exists(path_))return;nlohmann::json j;std::ifstream(path_)>>j;salt_=j.value("salt","");hash_=j.value("pin_hash","");}catch(...){salt_.clear();hash_.clear();}}bool SecurityService::hasDevicePin()const{return!hash_.empty();}bool SecurityService::setDevicePin(const std::string&pin){if(pin.size()<4||pin.size()>12)return false;
+SecurityService::SecurityService(std::filesystem::path root):path_(root/"security.json"){std::filesystem::create_directories(root);load();}void SecurityService::load(){try{recoverAtomicFile(path_);if(!std::filesystem::exists(path_))return;nlohmann::json j;std::ifstream(path_)>>j;salt_=j.value("salt","");hash_=j.value("pin_hash","");}catch(...){salt_.clear();hash_.clear();}}bool SecurityService::hasDevicePin()const{return!hash_.empty();}bool SecurityService::setDevicePin(const std::string&pin){if(pin.size()<4||pin.size()>12)return false;
 #ifdef PINE_TAB5
 auto rd=[](){return esp_random();};
 #else
 std::random_device rd;
 #endif
-salt_=std::format("{:08x}{:08x}{:08x}{:08x}",rd(),rd(),rd(),rd());hash_=derive(pin,salt_);auto tmp=path_;tmp+=".tmp";std::ofstream(tmp)<<nlohmann::json{{"salt",salt_},{"pin_hash",hash_}}.dump(2);std::filesystem::rename(tmp,path_);return true;}bool SecurityService::authenticate(const std::string&pin)const{if(hash_.empty())return false;const auto candidate=derive(pin,salt_);unsigned char difference=0;for(std::size_t i=0;i<candidate.size();++i)difference|=static_cast<unsigned char>(candidate[i]^hash_[i]);return difference==0;}}
+auto salt=std::format("{:08x}{:08x}{:08x}{:08x}",rd(),rd(),rd(),rd());auto hash=derive(pin,salt);writeAtomicFile(path_,nlohmann::json{{"salt",salt},{"pin_hash",hash}}.dump(2));salt_=std::move(salt);hash_=std::move(hash);return true;}bool SecurityService::authenticate(const std::string&pin)const{if(hash_.size()!=64||salt_.size()!=32||pin.size()<4||pin.size()>12)return false;const auto candidate=derive(pin,salt_);unsigned char difference=0;for(std::size_t i=0;i<candidate.size();++i)difference|=static_cast<unsigned char>(candidate[i]^hash_[i]);return difference==0;}}

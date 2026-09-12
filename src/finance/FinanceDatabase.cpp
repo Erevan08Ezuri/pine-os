@@ -15,13 +15,47 @@ constexpr auto storagePragmas="PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; 
 }
 
 namespace {void check(int code,sqlite3*db,const char*context){if(code!=SQLITE_OK&&code!=SQLITE_DONE&&code!=SQLITE_ROW)throw std::runtime_error(std::string(context)+": "+sqlite3_errmsg(db));}}
-FinanceDatabase::FinanceDatabase(std::filesystem::path root){try{std::filesystem::create_directories(root/"finance");path_=root/"finance"/"finance.db";const auto opened=sqlite3_open_v2(path_.string().c_str(),&db_,SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr);if(opened!=SQLITE_OK){const std::string reason=db_?sqlite3_errmsg(db_):"storage unavailable";if(db_)sqlite3_close(db_);db_=nullptr;openMemoryFallback(reason);return;}sqlite3_busy_timeout(db_,5000);try{execute(storagePragmas);migrate();}catch(const std::exception&e){sqlite3_close(db_);db_=nullptr;auto recovery=path_;recovery+=std::format(".recovery-{}",std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());std::error_code ec;std::filesystem::rename(path_,recovery,ec);if(ec){openMemoryFallback(std::string("Database corrupt; original preserved: ")+e.what());return;}warning_="Damaged database preserved as "+recovery.filename().string();check(sqlite3_open_v2(path_.string().c_str(),&db_,SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr),db_,"Create recovery database");sqlite3_busy_timeout(db_,5000);execute(storagePragmas);migrate();Logger::instance().error("FINANCE",warning_);}}catch(const std::exception&e){if(db_)sqlite3_close(db_);db_=nullptr;openMemoryFallback(e.what());}}
+FinanceDatabase::FinanceDatabase(std::filesystem::path root) {
+    try {
+        std::filesystem::create_directories(root/"finance");path_=root/"finance"/"finance.db";
+        auto open=[&] {
+            const int rc=sqlite3_open_v2(path_.string().c_str(),&db_,SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr);
+            check(rc,db_,"Open Finance database");sqlite3_busy_timeout(db_,5000);
+        };
+        open();
+        try { execute(storagePragmas);migrate(); }
+        catch(const std::exception&) {
+            const int error=sqlite3_errcode(db_);
+            // A lock, full disk, I/O error or newer schema is not corruption.
+            // Preserve the original file in all such cases.
+            if(error!=SQLITE_CORRUPT&&error!=SQLITE_NOTADB)throw;
+            sqlite3_close(db_);db_=nullptr;
+            auto recovery=path_;recovery+=std::format(".recovery-{}",std::chrono::steady_clock::now().time_since_epoch().count());
+            std::filesystem::rename(path_,recovery);
+            for(const auto* suffix:{"-wal","-shm","-journal"}) {
+                const auto sidecar=path_.string()+suffix;
+                if(std::filesystem::exists(sidecar))std::filesystem::rename(sidecar,recovery.string()+suffix);
+            }
+            warning_="Damaged database preserved as "+recovery.filename().string();
+            open();execute(storagePragmas);migrate();Logger::instance().error("FINANCE",warning_);
+        }
+    } catch(const std::exception& e) {
+        if(db_)sqlite3_close(db_);
+        db_=nullptr;openMemoryFallback(e.what());
+    }
+}
 void FinanceDatabase::openMemoryFallback(const std::string&reason){if(db_)sqlite3_close(db_);db_=nullptr;check(sqlite3_open_v2(":memory:",&db_,SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE|SQLITE_OPEN_FULLMUTEX,nullptr),db_,"Open emergency Finance database");memoryFallback_=true;warning_="Finance storage unavailable; changes are temporarily in memory: "+reason;sqlite3_busy_timeout(db_,5000);execute("PRAGMA foreign_keys=ON");migrate();Logger::instance().error("FINANCE",warning_);}
 FinanceDatabase::~FinanceDatabase(){if(db_)sqlite3_close(db_);}
 void FinanceDatabase::execute(const std::string&sql){char*error=nullptr;const auto code=sqlite3_exec(db_,sql.c_str(),nullptr,nullptr,&error);if(code!=SQLITE_OK){std::string message=error?error:sqlite3_errmsg(db_);sqlite3_free(error);throw std::runtime_error(message);}}
-void FinanceDatabase::transaction(const std::function<void()>&work){std::scoped_lock lock(mutex_);execute("BEGIN IMMEDIATE");try{work();execute("COMMIT");}catch(...){try{execute("ROLLBACK");}catch(...){}throw;}}
+void FinanceDatabase::transaction(const std::function<void()>&work){
+    std::scoped_lock lock(mutex_);
+    const bool nested=sqlite3_get_autocommit(db_)==0;
+    execute(nested?"SAVEPOINT pine_nested":"BEGIN IMMEDIATE");
+    try { work(); execute(nested?"RELEASE pine_nested":"COMMIT"); }
+    catch(...) { try { execute(nested?"ROLLBACK TO pine_nested; RELEASE pine_nested":"ROLLBACK"); } catch(...) {} throw; }
+}
 int FinanceDatabase::schemaVersion()const{sqlite3_stmt*stmt{};check(sqlite3_prepare_v2(db_,"PRAGMA user_version",-1,&stmt,nullptr),db_,"Read schema");const int v=sqlite3_step(stmt)==SQLITE_ROW?sqlite3_column_int(stmt,0):0;sqlite3_finalize(stmt);return v;}
-void FinanceDatabase::migrate(){std::scoped_lock lock(mutex_);if(schemaVersion()>=1)return;execute(R"SQL(
+void FinanceDatabase::migrate(){std::scoped_lock lock(mutex_);const auto version=schemaVersion();if(version>1)throw std::runtime_error("Finance database was created by a newer version");if(version==1)return;execute(R"SQL(
 BEGIN IMMEDIATE;
 CREATE TABLE accounts(id TEXT PRIMARY KEY,name TEXT NOT NULL,type TEXT NOT NULL,institution_name TEXT NOT NULL DEFAULT '',current_balance INTEGER NOT NULL,available_balance INTEGER NOT NULL,currency TEXT NOT NULL,color_or_icon TEXT NOT NULL DEFAULT 'gold',created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,archived INTEGER NOT NULL DEFAULT 0,sync_provider TEXT NOT NULL DEFAULT 'manual',sync_status TEXT NOT NULL DEFAULT 'Manual',last_sync_time INTEGER NOT NULL DEFAULT 0,credit_limit INTEGER NOT NULL DEFAULT 0,statement_balance INTEGER NOT NULL DEFAULT 0,minimum_payment INTEGER NOT NULL DEFAULT 0,apr_basis_points INTEGER NOT NULL DEFAULT 0,payment_due_date TEXT NOT NULL DEFAULT '');
 CREATE TABLE categories(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,icon TEXT NOT NULL,built_in INTEGER NOT NULL,hidden INTEGER NOT NULL DEFAULT 0);

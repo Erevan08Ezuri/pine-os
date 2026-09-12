@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <map>
 #include <mutex>
 #include <string>
@@ -115,8 +116,13 @@ int accessFile(sqlite3_vfs*,const char* name,int,int* result){
     return SQLITE_OK;
 }
 int fullPath(sqlite3_vfs*,const char* name,int size,char* out){
-    if(!name||name[0]!='/'||std::strlen(name)>=static_cast<size_t>(size))return SQLITE_CANTOPEN;
-    std::snprintf(out,size,"%s",name);return SQLITE_OK;
+    if(!name||name[0]!='/'||size<=0)return SQLITE_CANTOPEN;
+    // All aliases of a database must use the same in-process lock group.
+    try {
+        const auto canonical=std::filesystem::weakly_canonical(name).string();
+        if(canonical.size()>=static_cast<size_t>(size))return SQLITE_CANTOPEN;
+        std::snprintf(out,size,"%s",canonical.c_str());return SQLITE_OK;
+    } catch(...) { return SQLITE_CANTOPEN; }
 }
 int randomBytes(sqlite3_vfs*,int bytes,char* out){
 #ifdef ESP_PLATFORM
