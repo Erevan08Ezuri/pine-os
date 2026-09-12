@@ -55,7 +55,7 @@ void Shell::handleEvent(const SDL_Event&e){
   if(event.type==SDL_EVENT_MOUSE_BUTTON_UP&&event.button.button==SDL_BUTTON_LEFT){if(keyboard_.pointerUp(event.button.x,event.button.y,textInput_,now)){if(!textInput_.focused()&&window_)SDL_StopTextInput(window_);pointerDown_=false;return;}pointerDown_=false;if(!pointerDragged_){click_=true;clickX_=event.button.x;clickY_=event.button.y;}}
 }
 void Shell::update(double dt){if(auto*app=apps_.current())app->update(dt);const auto now=SDL_GetTicks();textInput_.update(dt);keyboard_.update(now,textInput_);financeSecurity_.update(now);if(financeJob_.valid()&&financeJob_.wait_for(std::chrono::seconds(0))==std::future_status::ready){try{toast(financeJob_.get());}catch(const std::exception&e){toast(std::string("FINANCE JOB FAILED: ")+e.what());}}if(apps_.currentId()=="finance"&&now/86400000!=financeReminderDay_)financeNotifyBills();if(noteSaveDebounce_.ready(now)){commitNote();noteSaveDebounce_.clear();}if(auto error=notes_.consumeError();!error.empty())toast("NOTE NOT SAVED - WILL REMAIN IN MEMORY");const auto delta=now-lastFrame_;if(delta>0)fps_=fps_*.9+(1000.0/delta)*.1;lastFrame_=now;}
-void Shell::render(){SDL_SetRenderDrawColor(renderer_,Theme::Background.r,Theme::Background.g,Theme::Background.b,255);SDL_RenderClear(renderer_);const bool booting=!skipBoot_&&SDL_GetTicks()-started_<2600;if(booting)renderBoot();else{renderShell();if(promptAction_)renderPrompt();keyboard_.render(*this,720,1280);}if(!toast_.empty()&&SDL_GetTicks()<toastUntil_){const float y=std::min(1110.0f,textInput_.safeContentBottom(1280)-80);panel({85,y,550,70});label(110,y+22,toast_,2.5f);}if(!capturePath_.empty()){SDL_Surface*surface=SDL_RenderReadPixels(renderer_,nullptr);captureSucceeded_=surface&&SDL_SaveBMP(surface,capturePath_.string().c_str());if(surface)SDL_DestroySurface(surface);capturePath_.clear();}SDL_RenderPresent(renderer_);click_=false;}
+void Shell::render(){SDL_SetRenderDrawBlendMode(renderer_,SDL_BLENDMODE_NONE);SDL_SetRenderDrawColor(renderer_,Theme::Background.r,Theme::Background.g,Theme::Background.b,255);SDL_RenderClear(renderer_);const bool booting=!skipBoot_&&SDL_GetTicks()-started_<2600;if(booting)renderBoot();else{renderShell();if(promptAction_)renderPrompt();keyboard_.render(*this,720,1280);}if(!toast_.empty()&&SDL_GetTicks()<toastUntil_){const float y=std::min(1110.0f,textInput_.safeContentBottom(1280)-80);panel({85,y,550,70});label(110,y+22,toast_,2.5f);}if(!capturePath_.empty()){SDL_Surface*surface=SDL_RenderReadPixels(renderer_,nullptr);captureSucceeded_=surface&&SDL_SaveBMP(surface,capturePath_.string().c_str());if(surface)SDL_DestroySurface(surface);capturePath_.clear();}SDL_RenderPresent(renderer_);click_=false;}
 bool Shell::captureFrame(const std::filesystem::path&path){capturePath_=path;captureSucceeded_=true;render();return captureSucceeded_;}
 void Shell::renderBoot(){const auto elapsed=SDL_GetTicks()-started_;label(245,410,"PINE",10,Theme::Gold);label(190,510,"STARTING PINE OS",3,Theme::Muted);const char*phases[]={"INITIALIZING PLATFORM","LOADING SERVICES","LOADING USER CONFIGURATION","STARTING SHELL"};int shown=std::min(4,static_cast<int>(elapsed/500));for(int i=0;i<shown;++i)label(145,590+i*45,phases[i],2.3f,i==shown-1?Theme::Gold:Theme::Muted);meter({145,800,430,8},std::min(100,static_cast<int>(elapsed*100/2500)));}
 void Shell::renderShell(){renderStatusBar();SDL_FlushRenderer(renderer_);if(developerOpen_)renderDeveloperPanel();else if(auto*app=apps_.current())app->render(*this);else renderHome();SDL_FlushRenderer(renderer_);if(!textInput_.keyboardVisible())renderNavigation();SDL_FlushRenderer(renderer_);}
@@ -68,7 +68,7 @@ void Shell::meter(Rect r,int value){SDL_SetRenderDrawColor(renderer_,Theme::Surf
 void Shell::toast(std::string value){toast_=std::move(value);toastUntil_=SDL_GetTicks()+2300;}
 bool Shell::launchApp(const std::string&id){
 #ifdef PINE_TAB5
-  if(id=="finance"&&!tab5ClockValid()){toast("CONNECT WI-FI TO SET THE CLOCK");return false;}
+  const bool financeClockInvalid=id=="finance"&&!tab5ClockValid();
   if(id=="camera"||id=="bluetooth"){toast("NOT SUPPORTED IN THIS FIRMWARE");return false;}
 #endif
   if(apps_.currentId()=="notes"&&id!="notes")commitNote();
@@ -82,6 +82,9 @@ bool Shell::launchApp(const std::string&id){
     financeSecurity_.configure(finance_.settings());
     financeSecurity_.onOpen(SDL_GetTicks());
     financeNotifyBills();
+#ifdef PINE_TAB5
+    if(financeClockInvalid)toast("CLOCK NOT SET - CONNECT WI-FI FOR CORRECT DATES");
+#endif
   }
   return opened;
 }
