@@ -9,7 +9,7 @@ void Shell::renderCamera(){
   label(45,105,"CAMERA",6,Theme::Gold);sublabel(48,165,camera_.available()?"LIVE CAMERA":"NO CAMERA DETECTED");Rect preview{55,220,610,750};panel(preview);
 #ifdef PINE_TAB5
   bool live=false;
-  CameraFrame frame;
+  static CameraFrame frame;
   if(camera_.available()&&camera_.previewFrame(frame)&&frame.width>0&&frame.height>0&&!frame.pixels.empty()){
     SDL_Surface*surface=SDL_CreateSurfaceFrom(frame.width,frame.height,SDL_PIXELFORMAT_RGB565,frame.pixels.data(),frame.width*2);
     if(surface){
