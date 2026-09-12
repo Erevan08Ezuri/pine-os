@@ -9,17 +9,27 @@ extern esp_err_t bsp_display_new_with_handles_to_st7123(const bsp_display_config
 static bsp_lcd_handles_t lcd;
 static esp_lcd_touch_handle_t touch;
 static SemaphoreHandle_t transfer_done;
+static SemaphoreHandle_t refresh_done;
+static void* frame_buffers[2];
 static bool sitronix;
-static bool transfer_finished(esp_lcd_panel_handle_t panel,esp_lcd_dpi_panel_event_data_t* event,void* ctx) {
-    // IDF calls this from the DMA ISR, but CPU/direct framebuffer paths call
-    // it synchronously from draw_bitmap. Use the matching FreeRTOS API.
-    if(!xPortInIsrContext()) {
-        xSemaphoreGive(transfer_done);
+static bool signal_semaphore(SemaphoreHandle_t semaphore) {
+    if(!semaphore)return false;
+    // Color-copy completion can be invoked synchronously, while refresh
+    // completion arrives from the display DMA ISR. Match the FreeRTOS API to
+    // the actual call context instead of assuming every callback is an ISR.
+    if(!xPortInIsrContext()){
+        xSemaphoreGive(semaphore);
         return false;
     }
     BaseType_t wake=pdFALSE;
-    xSemaphoreGiveFromISR(transfer_done,&wake);
+    xSemaphoreGiveFromISR(semaphore,&wake);
     return wake==pdTRUE;
+}
+static bool transfer_finished(esp_lcd_panel_handle_t panel,esp_lcd_dpi_panel_event_data_t* event,void* ctx) {
+    return signal_semaphore(transfer_done);
+}
+static bool refresh_finished(esp_lcd_panel_handle_t panel,esp_lcd_dpi_panel_event_data_t* event,void* ctx) {
+    return signal_semaphore(refresh_done);
 }
 esp_err_t esp_bsp_sdl_init(esp_bsp_sdl_display_config_t* cfg,esp_lcd_panel_handle_t* panel,esp_lcd_panel_io_handle_t* io) {
     // Pine handles touch directly: upstream SDL incorrectly uses pixel coordinates
@@ -35,22 +45,29 @@ esp_err_t esp_bsp_sdl_init(esp_bsp_sdl_display_config_t* cfg,esp_lcd_panel_handl
         err=sitronix?bsp_display_new_with_handles_to_st7123(&config,&lcd):bsp_display_new_with_handles(&config,&lcd);
         if(err!=ESP_OK) return err;
         transfer_done=xSemaphoreCreateBinary();
-        if(!transfer_done) return ESP_ERR_NO_MEM;
-        esp_lcd_dpi_panel_event_callbacks_t callbacks={.on_color_trans_done=transfer_finished};
+        refresh_done=xSemaphoreCreateBinary();
+        if(!transfer_done||!refresh_done) return ESP_ERR_NO_MEM;
+        esp_lcd_dpi_panel_event_callbacks_t callbacks={.on_color_trans_done=transfer_finished,.on_refresh_done=refresh_finished};
         err=esp_lcd_dpi_panel_register_event_callbacks(lcd.panel,&callbacks,NULL);
+        if(err!=ESP_OK) return err;
+        err=esp_lcd_dpi_panel_get_frame_buffer(lcd.panel,2,&frame_buffers[0],&frame_buffers[1]);
         if(err!=ESP_OK) return err;
     }
     *panel=lcd.panel;*io=lcd.io;return ESP_OK;
 }
+void* pine_tab5_framebuffer(int index){return index>=0&&index<2?frame_buffers[index]:NULL;}
 esp_err_t pine_tab5_present(const void* pixels) {
-    if(!lcd.panel||!transfer_done||!pixels)return ESP_ERR_INVALID_STATE;
-    // A prior callback can leave this binary semaphore full. Drain that token
-    // before submitting a new frame so the wait below always belongs to the
-    // frame we just submitted. This prevents copy/scanout overlap from showing
-    // the previous screen through the current one or producing visible tearing.
-    while(xSemaphoreTake(transfer_done,0)==pdTRUE) {}
+    if(!lcd.panel||!pixels)return ESP_ERR_INVALID_STATE;
+    while(xSemaphoreTake(refresh_done,0)==pdTRUE){}
+    while(xSemaphoreTake(transfer_done,0)==pdTRUE){}
     esp_err_t err=esp_lcd_panel_draw_bitmap(lcd.panel,0,0,720,1280,pixels);
-    if(err!=ESP_OK) return err;
+    if(err!=ESP_OK)return err;
+    // When Pine renders directly into one of the LCD driver's framebuffers,
+    // draw_bitmap changes the buffer selected for the *next* DMA refresh.
+    // Waiting for refresh completion makes the old framebuffer safe to draw
+    // into again, eliminating tearing/ghost images without a 1.8 MB copy.
+    const bool direct=pixels==frame_buffers[0]||pixels==frame_buffers[1];
+    if(direct)return xSemaphoreTake(refresh_done,pdMS_TO_TICKS(100))?ESP_OK:ESP_ERR_TIMEOUT;
     return xSemaphoreTake(transfer_done,pdMS_TO_TICKS(1000))?ESP_OK:ESP_ERR_TIMEOUT;
 }
 esp_err_t esp_bsp_sdl_backlight_on(void){return bsp_display_backlight_on();}
