@@ -114,7 +114,9 @@ void* pineMainThread(void*){
             shell.textInput().setForceSoftwareKeyboard(true);
             logMemory("shell ready");
             auto previous=SDL_GetTicks();
+            auto lastPresent=previous;
             std::uint64_t lastClockSave=0;
+            constexpr std::uint64_t frameIntervalMs=33; // ~30 FPS; avoid saturating PSRAM/DSI with full-frame copies.
             while(shell.running()){
                 auto now=SDL_GetTicks();
                 if(now-lastClockSave>=60000){
@@ -125,9 +127,13 @@ void* pineMainThread(void*){
                 pollTouch(shell);
                 shell.update((now-previous)/1000.0);
                 previous=now;
-                shell.render();
-                ESP_ERROR_CHECK(pine_tab5_present(surface->pixels));
-                vTaskDelay(pdMS_TO_TICKS(10));
+
+                if(now-lastPresent>=frameIntervalMs){
+                    shell.render();
+                    ESP_ERROR_CHECK(pine_tab5_present(surface->pixels));
+                    lastPresent=now;
+                }
+                vTaskDelay(pdMS_TO_TICKS(2));
             }
         }
 
