@@ -51,7 +51,14 @@ esp_err_t esp_bsp_sdl_init(esp_bsp_sdl_display_config_t* cfg,esp_lcd_panel_handl
         err=esp_lcd_dpi_panel_register_event_callbacks(lcd.panel,&callbacks,NULL);
         if(err!=ESP_OK) return err;
         err=esp_lcd_dpi_panel_get_frame_buffer(lcd.panel,2,&frame_buffers[0],&frame_buffers[1]);
-        if(err!=ESP_OK) return err;
+        if(err!=ESP_OK){
+            frame_buffers[0]=frame_buffers[1]=NULL;
+            // Alternate/older panel paths can still expose a single FB. Keep
+            // the original copy-based present path alive rather than failing
+            // the whole boot just because direct double buffering is absent.
+            void* single=NULL;
+            if(esp_lcd_dpi_panel_get_frame_buffer(lcd.panel,1,&single)==ESP_OK)frame_buffers[0]=single;
+        }
     }
     *panel=lcd.panel;*io=lcd.io;return ESP_OK;
 }
@@ -66,7 +73,7 @@ esp_err_t pine_tab5_present(const void* pixels) {
     // draw_bitmap changes the buffer selected for the *next* DMA refresh.
     // Waiting for refresh completion makes the old framebuffer safe to draw
     // into again, eliminating tearing/ghost images without a 1.8 MB copy.
-    const bool direct=pixels==frame_buffers[0]||pixels==frame_buffers[1];
+    const bool direct=frame_buffers[1]&&(pixels==frame_buffers[0]||pixels==frame_buffers[1]);
     if(direct)return xSemaphoreTake(refresh_done,pdMS_TO_TICKS(100))?ESP_OK:ESP_ERR_TIMEOUT;
     return xSemaphoreTake(transfer_done,pdMS_TO_TICKS(1000))?ESP_OK:ESP_ERR_TIMEOUT;
 }
