@@ -60,11 +60,12 @@ void mountStorage(){
     ESP_ERROR_CHECK(result);
 }
 
-void pollTouch(Pine::Shell& shell){
+bool pollTouch(Pine::Shell& shell){
     static esp_bsp_sdl_touch_info_t current{};
     static bool down=false;
     auto next=current;
-    if(esp_bsp_sdl_touch_read(&next)!=ESP_OK)return;
+    if(esp_bsp_sdl_touch_read(&next)!=ESP_OK)return false;
+    bool edge=false;
     SDL_Event e{};
     if(next.pressed!=down){
         e.type=next.pressed?SDL_EVENT_MOUSE_BUTTON_DOWN:SDL_EVENT_MOUSE_BUTTON_UP;
@@ -72,6 +73,7 @@ void pollTouch(Pine::Shell& shell){
         e.button.x=next.pressed?next.x:current.x;
         e.button.y=next.pressed?next.y:current.y;
         shell.handleEvent(e);
+        edge=true;
     }else if(next.pressed&&(next.x!=current.x||next.y!=current.y)){
         e.type=SDL_EVENT_MOUSE_MOTION;
         e.motion.x=next.x;
@@ -80,6 +82,7 @@ void pollTouch(Pine::Shell& shell){
     }
     down=next.pressed;
     if(down)current=next;
+    return edge;
 }
 
 void* pineMainThread(void*){
@@ -116,7 +119,8 @@ void* pineMainThread(void*){
             auto previous=SDL_GetTicks();
             auto lastPresent=previous;
             std::uint64_t lastClockSave=0;
-            constexpr std::uint64_t frameIntervalMs=33; // ~30 FPS; avoid saturating PSRAM/DSI with full-frame copies.
+            constexpr std::uint64_t frameIntervalMs=33; // ~30 FPS during idle/animation.
+            constexpr std::uint64_t interactionFrameMinMs=8; // Present touch edges quickly without flooding DSI.
             while(shell.running()){
                 auto now=SDL_GetTicks();
                 if(now-lastClockSave>=60000){
@@ -124,14 +128,16 @@ void* pineMainThread(void*){
                     lastClockSave=now;
                     logMemory("running");
                 }
-                pollTouch(shell);
+                const bool touchEdge=pollTouch(shell);
                 shell.update((now-previous)/1000.0);
                 previous=now;
 
-                if(now-lastPresent>=frameIntervalMs){
+                const bool scheduledFrame=now-lastPresent>=frameIntervalMs;
+                const bool interactionFrame=touchEdge&&now-lastPresent>=interactionFrameMinMs;
+                if(scheduledFrame||interactionFrame){
                     shell.render();
                     ESP_ERROR_CHECK(pine_tab5_present(surface->pixels));
-                    lastPresent=now;
+                    lastPresent=SDL_GetTicks();
                 }
                 vTaskDelay(pdMS_TO_TICKS(2));
             }
