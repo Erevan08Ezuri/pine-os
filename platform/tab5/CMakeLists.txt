@@ -4,6 +4,7 @@ set(COMPONENTS main)
 set(EXTRA_COMPONENT_DIRS
   "${CMAKE_CURRENT_LIST_DIR}/.deps/sdl/sdl"
   "${CMAKE_CURRENT_LIST_DIR}/.deps/factory/platforms/tab5/components/m5stack_tab5"
+  "${CMAKE_CURRENT_LIST_DIR}/.deps/factory/platforms/tab5/components/esp_ipa"
   "${CMAKE_CURRENT_LIST_DIR}/.deps/factory/platforms/tab5/components/esp_lcd_st7121"
   "${CMAKE_CURRENT_LIST_DIR}/.deps/factory/platforms/tab5/components/esp_sccb_intf"
   "${CMAKE_CURRENT_LIST_DIR}/.deps/factory/platforms/tab5/components/esp_cam_sensor"

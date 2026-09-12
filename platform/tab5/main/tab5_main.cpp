@@ -2,6 +2,7 @@
 #include "ui/Font.hpp"
 #include "platform/tab5/Tab5Platform.hpp"
 #include "platform/tab5/Tab5Clock.hpp"
+#include "platform/tab5/Tab5Splash.hpp"
 #include "core/Logger.hpp"
 #include "esp_bsp_sdl.h"
 #include "esp_littlefs.h"
@@ -23,6 +24,8 @@ extern const unsigned char regularStart[] asm("_binary_Inter_Regular_ttf_start")
 extern const unsigned char regularEnd[] asm("_binary_Inter_Regular_ttf_end");
 extern const unsigned char boldStart[] asm("_binary_Inter_SemiBold_ttf_start");
 extern const unsigned char boldEnd[] asm("_binary_Inter_SemiBold_ttf_end");
+extern const unsigned char splashStart[] asm("_binary_pineos_gold_tab5_bmp_start");
+extern const unsigned char splashEnd[] asm("_binary_pineos_gold_tab5_bmp_end");
 
 namespace {
 void logMemory(const char* stage){
@@ -88,17 +91,9 @@ bool pollTouch(Pine::Shell& shell){
 void* pineMainThread(void*){
     try{
         logMemory("pine pthread entered");
-        mountStorage();
-        Pine::Logger::instance().initialize("/pine/data",Pine::LogLevel::Info);
-        Pine::Configuration config("/pine/data");
-        config.load();
-        config.settings().developerMode=false;
-
         // SDL3 uses pthread APIs internally on ESP-IDF. Running PineOS from a
         // pthread-backed task ensures pthread_self() has a valid thread ID.
         if(!SDL_Init(SDL_INIT_VIDEO))throw std::runtime_error(SDL_GetError());
-        ESP_ERROR_CHECK(esp_bsp_sdl_touch_init());
-        Pine::initializeTab5Clock();
 
         if(!Pine::initializeEmbeddedFonts(regularStart,regularEnd-regularStart,boldStart,boldEnd-boldStart))
             throw std::runtime_error("Bundled fonts unavailable");
@@ -125,9 +120,39 @@ void* pineMainThread(void*){
 
         {
             int backBuffer=directBuffers?1:0; // DSI starts scanning framebuffer 0.
-            auto ownedShell=std::make_unique<Pine::Shell>(nullptr,renderers[backBuffer],config,Pine::createTab5Platform());
+            auto* splashIo=SDL_IOFromConstMem(splashStart,splashEnd-splashStart);
+            if(!splashIo)throw std::runtime_error(SDL_GetError());
+            std::unique_ptr<SDL_Surface,decltype(&SDL_DestroySurface)> artwork(
+                SDL_LoadBMP_IO(splashIo,true),SDL_DestroySurface);
+            Pine::Tab5Splash splash(artwork.get());
+            auto showProgress=[&](float progress){
+                splash.render(renderers[backBuffer],surfaces[backBuffer],progress);
+                ESP_ERROR_CHECK(pine_tab5_present(surfaces[backBuffer]->pixels));
+                if(directBuffers)backBuffer^=1;
+            };
+            // Milestones represent completed initialization work, not a timer.
+            // Show branding before mounting storage (first boot may format it).
+            showProgress(0.10f);
+            mountStorage();
+            Pine::Logger::instance().initialize("/pine/data",Pine::LogLevel::Info);
+            showProgress(0.30f);
+            Pine::Configuration config("/pine/data");
+            config.load();
+            config.settings().developerMode=false;
+            showProgress(0.45f);
+            ESP_ERROR_CHECK(esp_bsp_sdl_touch_init());
+            showProgress(0.55f);
+            Pine::initializeTab5Clock();
+            showProgress(0.65f);
+            auto platform=Pine::createTab5Platform();
+            showProgress(0.80f);
+            auto ownedShell=std::make_unique<Pine::Shell>(nullptr,renderers[backBuffer],config,std::move(platform));
             auto& shell=*ownedShell;
             shell.textInput().setForceSoftwareKeyboard(true);
+            showProgress(1.0f);
+            vTaskDelay(pdMS_TO_TICKS(150)); // Briefly present completion before home.
+            artwork.reset(); // Release splash RAM before the interactive loop.
+            shell.completeBoot(); // The Tab5 has already shown its real boot flow.
             logMemory("shell ready");
             auto previous=SDL_GetTicks();
             auto lastPresent=previous;

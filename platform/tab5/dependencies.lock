@@ -6,7 +6,7 @@ dependencies:
       require: private
       version: '>=4.1'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 0.5.3
   espressif/eppp_link:
@@ -33,6 +33,20 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.6.2
+  espressif/esp_h264:
+    component_hash: 054a781d7280b94f3d5c29d562ed1582e4c51e7f3ff5566d5d57058e80817805
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s3
+    - esp32s31
+    - esp32p4
+    version: 1.4.0
   espressif/esp_hosted:
     component_hash: ef6bc803451fab3c3f9a679bbc1c48fba0ceeeabc5af4178dd7d2300fafa423e
     dependencies:
@@ -182,7 +196,9 @@ dependencies:
       type: service
     version: 1.20.2
 direct_dependencies:
+- espressif/cmake_utilities
 - espressif/esp_codec_dev
+- espressif/esp_h264
 - espressif/esp_hosted
 - espressif/esp_lcd_ili9881c
 - espressif/esp_lcd_st7703
@@ -192,6 +208,6 @@ direct_dependencies:
 - espressif/usb_host_hid
 - idf
 - joltwallet/littlefs
-manifest_hash: 47ab39ce83c1cb6eedc89add5255d3c1814f49b4a22a183f2f42a6d22da7c0f2
+manifest_hash: 6faec323d2ae8ccd075b0a13379a259bcea03f0cb872d48be4ed91828b309a3b
 target: esp32p4
 version: 2.0.0
