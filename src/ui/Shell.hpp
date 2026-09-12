@@ -43,7 +43,8 @@ public:
   double fps()const{return fps_;}void persist();void openTextPrompt(const std::string&,std::string,std::function<void(const std::string&)>,InputType type=InputType::Text,std::size_t maxLength=128);
   bool launchApp(const std::string&);void goHome();void focusInput(TextInputSession&);void dismissInput();
   void showToast(const std::string&value){toast(value);}
-  void acceptanceSkipBoot(){skipBoot_=true;} void acceptanceDeveloper(bool value){developerOpen_=value;}
+  void completeBoot(){skipBoot_=true;}
+  void acceptanceSkipBoot(){completeBoot();} void acceptanceDeveloper(bool value){developerOpen_=value;}
   bool acceptanceLaunch(const std::string&id){return launchApp(id);} void acceptancePath(const std::filesystem::path&p){currentPath_=p;selected_.reset();}
   bool acceptanceCreateNote(const std::string&title,const std::string&body,bool pinned);
   void acceptanceBeginNote(){beginNewNote();}void acceptanceInput(const std::string&text){textInput_.insertFromKeyboard(text);}void acceptanceKey(const std::string&key,std::uint64_t now){keyboard_.press(key,textInput_,now);}void acceptanceDismissKeyboard(){dismissInput();}void acceptanceCloseNote(){closeNoteEditor();}void acceptanceSearch(const std::string&value){notesSearch_=value;searchSession_->setCursor(value.size());}void acceptancePinNote(){notePinned_=true;noteHasChanges_=true;commitNote();}
