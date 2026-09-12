@@ -15,6 +15,7 @@
 #include "services/NotesService.hpp"
 #include "services/NotificationService.hpp"
 #include "services/SecurityService.hpp"
+#include "services/DeviceLockService.hpp"
 #include "finance/FinanceService.hpp"
 #include "finance/FinanceSecurityManager.hpp"
 #include "finance/ImportExportManager.hpp"
@@ -40,6 +41,8 @@ public:
   SDL_Renderer*renderer()const{return renderer_;}void setRenderer(SDL_Renderer*r){renderer_=r;} bool button(Rect,const std::string&,bool accent=false);void panel(Rect);void coloredPanel(Rect,SDL_Color fill,SDL_Color border,float radius=12);void label(float,float,const std::string&,float=3,SDL_Color=Theme::Ink);void sublabel(float,float,const std::string&);void meter(Rect,int);
   BatteryService&battery(){return battery_;}BluetoothService&bluetooth(){return bluetooth_;}CameraService&camera(){return camera_;}AudioService&audio(){return audio_;}NetworkService&network(){return network_;}UsbService&usb(){return usb_;}DisplayService&display(){return display_;}FileService&files(){return files_;}SystemService&system(){return system_;}NotesService&notes(){return notes_;}Finance::FinanceService&finance(){return finance_;}Configuration&config(){return config_;}ApplicationManager&apps(){return apps_;}TextInputManager&textInput(){return textInput_;}
   double fps()const{return fps_;}void persist();void openTextPrompt(const std::string&,std::string,std::function<void(const std::string&)>,InputType type=InputType::Text,std::size_t maxLength=128);
+  DeviceLockService& deviceLock(){return deviceLock_;}
+  void lockDevice();
   bool launchApp(const std::string&);void goHome();void focusInput(TextInputSession&);void dismissInput();
   void showToast(const std::string&value){toast(value);}
   void acceptanceSkipBoot(){skipBoot_=true;} void acceptanceDeveloper(bool value){developerOpen_=value;}
@@ -52,6 +55,16 @@ public:
 private:
   enum class NotesView{List,Editor};
   enum class FinanceView{Home,Accounts,AccountDetail,Activity,Budget,Goals,More,Bills,Subscriptions,Analytics,Calculator,Categories,Settings};
+  enum class PinMode{Unlock,Current,New,Confirm,Saving};
+  DeviceLockService deviceLock_;
+  PinMode pinMode_{PinMode::Unlock};
+  bool pinChanging_{},renderingPin_{},wifiScreen_{};
+  std::string pinInput_,pinCurrent_,pinNew_,pinMessage_;
+  std::uint64_t pinChangeRevision_{};
+  std::size_t wifiPage_{};
+  bool pinScreenVisible()const{return deviceLock_.locked()||pinChanging_;}
+  void renderPinScreen();void pinKey(const std::string&);void submitPin();void beginPinChange();
+  void renderWifiScreen();void openWifiScreen();void selectWifiNetwork(const WifiNetwork&);
   bool hasAppOverlay()const;void cancelPrompts();
   void renderBoot();void renderShell();void renderHome();void renderStatusBar();void renderNavigation();void renderDeveloperPanel();void renderPrompt();bool hit(Rect)const;void toast(std::string);
   void beginNewNote();void openNote(const std::string&);void commitNote();void closeNoteEditor();void confirmDeleteNote();void drawTextField(Rect,TextInputSession&,const std::string&,bool multiline=false);std::size_t cursorAt(Rect,const TextInputSession&,float,float,bool multiline);
@@ -63,6 +76,7 @@ private:
   bool renderingPrompt_{},renderingOverlay_{};
   bool running_{true},developerOpen_{false},click_{false},skipBoot_{false},pointerDown_{false},pointerDragged_{false};float clickX_{},clickY_{},pointerY_{};std::uint64_t started_{},lastFrame_{};double fps_{0};std::string toast_;std::uint64_t toastUntil_{};
   std::filesystem::path currentPath_;std::optional<FileEntry>selected_;std::string promptTitle_,promptText_;std::function<void(const std::string&)>promptAction_;std::unique_ptr<TextInputSession>promptSession_;
+  std::size_t bluetoothPage_{};
   NotesView notesView_{NotesView::List};std::string notesSearch_,editingNoteId_,noteTitle_,noteBody_;bool notePinned_{},deleteNotePrompt_{},noteHasChanges_{};float notesScroll_{},bodyScroll_{};Debouncer noteSaveDebounce_{750};
   std::unique_ptr<TextInputSession>searchSession_,titleSession_,bodySession_;
   FinanceView financeView_{FinanceView::Home};float financeScroll_{};bool financeQuickMenu_{},financeTypePicker_{},financeTransactionPicker_{},financeTransferPicker_{},financeFilterPrompt_{},financeDashboardPrompt_{},financeDeletePrompt_{},financeArchivePrompt_{},financeErasePrompt_{},financeRestorePrompt_{},financeImportPrompt_{};std::string financeSelectedAccount_,financeSelectedTransaction_,financeSearch_,financeDraftType_{"Expense"},financeDraftAccount_,financeDraftTarget_,financeDraftName_,financeDraftInstitution_,financeDraftAmount_,financeDraftCategory_,financeDraftDate_;std::string financeFilterAccount_,financeFilterCategory_,financeFilterType_,financeFilterStatus_,financeFilterFrom_,financeFilterTo_,financeFilterMin_,financeFilterMax_;std::vector<Finance::ImportPreviewRow>financeImportRows_;Finance::CsvMapping financeCsvMapping_;std::unique_ptr<TextInputSession>financeSearchSession_;std::string financeCalculatorResult_;std::uint64_t financeReminderDay_{};

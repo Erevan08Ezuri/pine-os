@@ -116,7 +116,8 @@ bool Tab5Camera::initialize(){
         buffer.index=i;
         if(ioctl(fd_,VIDIOC_QUERYBUF,&buffer)!=0){release();failed_=true;return false;}
         void* mapped=mmap(nullptr,buffer.length,PROT_READ|PROT_WRITE,MAP_SHARED,fd_,buffer.m.offset);
-        if(mapped==MAP_FAILED){release();failed_=true;return false;}
+        // The pinned esp_video mmap shim returns nullptr on failure.
+        if(mapped==nullptr){release();failed_=true;return false;}
         buffers_[i]={mapped,buffer.length};
     }
     const int flags=fcntl(fd_,F_GETFL,0);
@@ -235,7 +236,7 @@ bool Tab5Camera::capturePhoto(const std::filesystem::path& path){
 void Tab5Camera::release(){
     stop();
     for(auto& buffer:buffers_){
-        if(buffer.data&&buffer.data!=MAP_FAILED)munmap(buffer.data,buffer.length);
+        if(buffer.data)munmap(buffer.data,buffer.length);
         buffer={};
     }
     bufferCount_=0;

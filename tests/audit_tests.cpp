@@ -159,6 +159,10 @@ int main() {
         {
             Configuration config(root/"modal");config.load();
             Shell shell(nullptr,renderer,config,createPlatform("desktop"));shell.acceptanceSkipBoot();
+            while(shell.deviceLock().busy()){SDL_Delay(5);shell.update(.005);}
+            require(shell.deviceLock().unlock("123456",SDL_GetTicks()),"device unlock request failed");
+            while(shell.deviceLock().busy()){SDL_Delay(5);shell.update(.005);}
+            require(!shell.deviceLock().locked(),"device still locked");
             bool submitted=false;shell.openTextPrompt("MODAL","test",[&](const std::string&){submitted=true;});
             SDL_Event click{};click.type=SDL_EVENT_MOUSE_BUTTON_UP;click.button.button=SDL_BUTTON_LEFT;
             click.button.x=150;click.button.y=425;shell.handleEvent(click);shell.render();

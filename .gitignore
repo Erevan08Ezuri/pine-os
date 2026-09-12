@@ -18,3 +18,5 @@ platform/tab5/sdkconfig.old
 __pycache__/
 *.pyc
 /dist/
+platform/tab5/sdkconfig.before-bluetooth
+platform/tab5/sdkconfig.bluetooth-tmp

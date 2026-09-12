@@ -30,7 +30,9 @@ factory BSP supports the original ILI9881C/GT911 and newer ST7123/ST7121 panels.
 Touch input uses native coordinates and release positions.
 Wi-Fi uses the onboard ESP32-C6 over the factory SDIO pins; hosted 1.4.0 and
 wifi-remote 0.8.5 match the factory application's versions.
-The C6 factory firmware is required and is not overwritten by this project.
+The C6 must run compatible ESP-Hosted firmware with BLE HCI enabled for Bluetooth.
+The factory C6 firmware is not overwritten by this project; a P4 build alone cannot
+verify its BLE capability.
 
 Internal LittleFS stores /pine/data, including settings, notes, and Finance.
 Fonts are embedded. No SD card is needed. SQLite uses persistent rollback journals
@@ -86,20 +88,60 @@ if it has already been used. It is never part of a routine firmware update.
 
 ## First boot
 
-Open Settings > Wi-Fi > Connect, enter a 2.4 GHz SSID and WPA2/WPA3-compatible
-password. Credentials are kept in NVS, not in the repository or log.
+Enter **123456** on the numeric device keypad, then tap Unlock. This initial PIN
+is provisioned only when the device has no lock credentials. Change it in
+Settings > Device PIN > Change PIN; enter the current PIN, the new six-digit PIN,
+and its confirmation. Settings > Lock returns to the keypad. The device locks
+on every boot (and when the desktop simulator loses focus). Five wrong attempts
+start a 30-second in-session delay, increasing to five minutes with more failures.
+Device-lock credentials are stored separately from the existing Finance PIN.
+Damaged PIN storage does not reset itself to the default. This is an application
+lock; flash and files are not encrypted, and rebooting clears the retry delay.
+
+Open Settings > Wi-Fi > Networks. With Wi-Fi on, the list scans automatically;
+tap Join beside your 2.4 GHz network and enter its password. Open networks need no
+password. Scan refreshes the list; Hidden Network retains manual entry for hidden
+SSIDs. Results show signal strength and security, deduplicate matching SSIDs and
+security modes, and display up to 32 networks across pages. WPA/WPA2 personal and
+WPA2/WPA3 transition networks are selectable. Enterprise, WEP, and WPA3-only
+networks are shown as unsupported in this first implementation. A scan during an
+active connection attempt may report that the radio is busy; retry after it settles.
+Credentials are kept in NVS, not in the repository or log.
 Wi-Fi initialization runs in a background thread so an unavailable radio does not
 block the UI. NTP sets the clock; the RX8130 saves UTC for later offline use.
-The status bar shows --:-- until time is valid. Finance waits for a valid clock
-to prevent incorrect transaction dates. Display time currently uses UTC.
+The status bar shows --:-- until time is valid. Display time currently uses UTC.
+
+## Bluetooth LE
+
+Open Bluetooth, turn it on, and tap Scan. A scan lasts ten seconds and can be
+stopped. It shows up to 32 BLE advertisers with their address, name, and RSSI,
+with six devices per page. Connect creates one BLE central link at a time;
+Disconnect closes it. Broadcast-only devices cannot be connected. A successful
+link is reported only after the controller confirms it. Rescanning preserves
+an existing connection; turning Bluetooth off cancels pending work and closes it.
+The host starts lazily on the first scan, off the UI thread. Wi-Fi and BLE share
+ESP-Hosted SDIO, with their initial radio startup serialized.
+
+This stage does **not** implement pairing/bonding, GATT application services,
+Bluetooth audio, keyboard input, or phone file transfer. Many phones will not
+appear unless an app advertises a BLE service. Use a known connectable BLE
+peripheral for the first device test. If the controller does not synchronize,
+the UI reports a C6 firmware/radio error instead of showing simulated devices.
+The Bluetooth toggle stops PineOS BLE activity; it does not power down the shared
+C6 radio or disconnect Wi-Fi.
+
+The build wrapper migrates project-owned Bluetooth flags in an existing sdkconfig,
+preserving other settings and backing it up as sdkconfig.before-bluetooth.
+It verifies NimBLE central/observer roles, the hosted VHCI transport, and one-link
+configuration before packaging/flashing. The dependency versions stay pinned.
 
 ## Feature boundaries
 
 - Display, touch, software keyboard, embedded fonts, internal persistence, Wi-Fi
-  configuration, NTP/RTC, and brightness are implemented for hardware.
+  discovery/configuration, NTP/RTC, device PIN keypad, and brightness are implemented for hardware.
 - The existing Finance features are reused, not replaced by a smaller demo.
 - Speaker volume/mute is connected to the codec; a music player is not included.
-- Camera capture, Bluetooth pairing/audio, USB mass storage and host keyboard,
+- Bluetooth pairing/audio, USB mass storage and host keyboard,
   microSD browsing, and battery percentage are not implemented in this target.
   Their desktop simulations are never used as hardware results.
 - Battery level displays unavailable; the board does not expose a supported
@@ -116,6 +158,14 @@ to prevent incorrect transaction dates. Display time currently uses UTC.
 6. Test brightness, volume, power cycle, and disconnect/reconnect Wi-Fi.
 7. Confirm unsupported features cannot produce fake captures or pairings.
 8. Update firmware without erasing flash; confirm notes and Finance survive.
+9. Unlock with 123456 on fresh storage, change the device PIN, reboot, and confirm
+   only the changed PIN works. Check incorrect PINs and Home/Dev input while locked.
+10. Scan Wi-Fi before saving credentials; select a network, join, rescan while
+    connected, turn Wi-Fi off during a scan, and test failed-password recovery.
+11. Scan a BLE peripheral, connect/disconnect, stop/rescan, and toggle Bluetooth
+    during a pending connection. Check Wi-Fi remains usable at the same time.
+12. Record internal free heap and task high-water marks with Wi-Fi, BLE, and a
+    PIN check active. Desktop tests cannot establish physical radio/stack behavior.
 
 ## Upstream references
 
