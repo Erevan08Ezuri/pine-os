@@ -9,15 +9,25 @@ TextInputSession::TextInputSession(std::string& value, InputType type, Callback 
   :value_(value),type_(type),changed_(std::move(changed)),submitted_(std::move(submitted)),
    blurred_(std::move(blurred)),maxLength_(maxLength),cursor_(value.size()),anchor_(value.size()){}
 
-void TextInputSession::setCursor(std::size_t position){cursor_=anchor_=std::min(position,value_.size());}
-void TextInputSession::setSelection(std::size_t anchor,std::size_t cursor){anchor_=std::min(anchor,value_.size());cursor_=std::min(cursor,value_.size());}
+namespace {
+std::size_t boundary(std::string_view text,std::size_t position){
+  position=std::min(position,text.size());
+  while(position>0&&position<text.size()&&(static_cast<unsigned char>(text[position])&0xC0)==0x80)--position;
+  return position;
+}
+}
+void TextInputSession::setCursor(std::size_t position){cursor_=anchor_=boundary(value_,position);}
+void TextInputSession::setSelection(std::size_t anchor,std::size_t cursor){anchor_=boundary(value_,anchor);cursor_=boundary(value_,cursor);}
 void TextInputSession::selectAll(){anchor_=0;cursor_=value_.size();}
 std::size_t TextInputSession::previousCodepoint(std::size_t p)const{if(p==0)return 0;--p;while(p>0&&(static_cast<unsigned char>(value_[p])&0xC0)==0x80)--p;return p;}
 std::size_t TextInputSession::nextCodepoint(std::size_t p)const{if(p>=value_.size())return value_.size();++p;while(p<value_.size()&&(static_cast<unsigned char>(value_[p])&0xC0)==0x80)++p;return p;}
 
 std::string TextInputSession::filtered(std::string_view input)const{
   std::string out;out.reserve(input.size());
+  bool previousCR=false;
   for(char c:input){
+    if(c=='\n'&&previousCR){previousCR=false;continue;}
+    previousCR=c=='\r';
     if(type_!=InputType::Multiline&&(c=='\n'||c=='\r'))continue;
     if(type_==InputType::Number&&!(std::isdigit(static_cast<unsigned char>(c))||c=='-'||c=='.'))continue;
     if(c=='\r')c='\n';
@@ -26,19 +36,23 @@ std::string TextInputSession::filtered(std::string_view input)const{
   return out;
 }
 void TextInputSession::replaceSelection(std::string_view input){
+  setSelection(anchor_,cursor_);
   auto text=filtered(input);const auto first=std::min(cursor_,anchor_),last=std::max(cursor_,anchor_);
-  const auto available=maxLength_-(value_.size()-(last-first));if(text.size()>available)text.resize(available);
+  const auto retained=value_.size()-(last-first);
+  const auto available=retained>=maxLength_?0:maxLength_-retained;
+  if(text.size()>available)text.resize(boundary(text,available));
   if(first==last&&text.empty())return;
   value_.replace(first,last-first,text);
   cursor_=anchor_=first+text.size();
-  if(changed_)changed_();
+  auto callback=changed_;if(callback)callback();
 }
 void TextInputSession::insertText(std::string_view text){replaceSelection(text);}
 void TextInputSession::deleteBackward(){
-  if(hasSelection()){replaceSelection("");return;}if(cursor_==0)return;const auto prior=previousCodepoint(cursor_);value_.erase(prior,cursor_-prior);cursor_=anchor_=prior;if(changed_)changed_();
+  setSelection(anchor_,cursor_);
+  if(hasSelection()){replaceSelection("");return;}if(cursor_==0)return;const auto prior=previousCodepoint(cursor_);value_.erase(prior,cursor_-prior);cursor_=anchor_=prior;auto callback=changed_;if(callback)callback();
 }
-void TextInputSession::moveLeft(bool selecting){const auto p=previousCodepoint(cursor_);cursor_=p;if(!selecting)anchor_=cursor_;}
-void TextInputSession::moveRight(bool selecting){cursor_=nextCodepoint(cursor_);if(!selecting)anchor_=cursor_;}
-void TextInputSession::submit(){if(type_==InputType::Multiline)insertText("\n");else if(submitted_)submitted_();}
-void TextInputSession::notifyBlurred(){if(blurred_)blurred_();}
+void TextInputSession::moveLeft(bool selecting){setSelection(anchor_,cursor_);const auto p=previousCodepoint(cursor_);cursor_=p;if(!selecting)anchor_=cursor_;}
+void TextInputSession::moveRight(bool selecting){setSelection(anchor_,cursor_);cursor_=nextCodepoint(cursor_);if(!selecting)anchor_=cursor_;}
+void TextInputSession::submit(){if(type_==InputType::Multiline)insertText("\n");else {auto callback=submitted_;if(callback)callback();}}
+void TextInputSession::notifyBlurred(){auto callback=blurred_;if(callback)callback();}
 }

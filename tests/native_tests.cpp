@@ -49,6 +49,25 @@ int main(){
   {NotesService notes(temp/"notes-data");auto loaded=notes.get(persistedId);CHECK(loaded&&loaded->title=="Field Journal"&&loaded->body=="Alpine signal at dawn");CHECK(notes.remove(pinnedId));notes.flush();}
   {NotesService notes(temp/"notes-data");CHECK(!notes.get(pinnedId));CHECK(notes.list().size()==1);}
   std::cerr<<"[TEST] exact money and currencies\n";
+  {
+    const auto folder=temp/"notes-data"/"notes";
+    const auto target=folder/(persistedId+".json");
+    std::filesystem::rename(target,target.string()+".bak");
+    std::ofstream(folder/"tampered.json")<<R"({"id":"../outside","title":"bad","created_at":1,"updated_at":1})";
+    NotesService notes(temp/"notes-data");
+    CHECK(notes.get(persistedId)&&notes.get(persistedId)->title=="Field Journal");
+    CHECK(notes.list().size()==1);CHECK(!notes.get("../outside"));
+    CHECK(std::filesystem::exists(target));
+  }
+  {
+    std::string value="abcde";TextInputSession limited(value,InputType::Text,{}, {}, {},3);
+    limited.insertText("x");CHECK(value=="abcde");
+    limited.selectAll();limited.insertText("\xC3\xA9\xC3\xA9");CHECK(value=="\xC3\xA9");
+    limited.setCursor(1);CHECK(limited.cursor()==0);
+    limited.setSelection(1,2);limited.insertText("a");CHECK(value=="a");
+    std::string multiline;TextInputSession body(multiline,InputType::Multiline);
+    body.insertText("first\r\nsecond\rthird\nfourth");CHECK(multiline=="first\nsecond\nthird\nfourth");
+  }
   {using namespace Finance;auto usd=Currency::fromCode("usd");auto ten=parseMoneyMinor("0.10",usd),twenty=parseMoneyMinor("0.20",usd);auto exactSum=Money{*ten,usd}+Money{*twenty,usd};CHECK(ten&&twenty&&exactSum.minor==30);std::int64_t pennies=0;for(int i=0;i<100;++i){auto sum=Money{pennies,usd}+Money{1,usd};pennies=sum.minor;}CHECK(pennies==100);CHECK(parseMoneyMinor("18.57",usd)==1857);CHECK(Currency::fromCode("JPY").minorDigits==0);CHECK(parseMoneyMinor("100",Currency::fromCode("JPY"))==100);CHECK(Currency::fromCode("BHD").minorDigits==3);CHECK(parseMoneyMinor("1.234",Currency::fromCode("BHD"))==1234);CHECK(!parseMoneyMinor("1.2345",Currency::fromCode("BHD")));}
   std::cerr<<"[TEST] finance accounts transactions transfers budgets and persistence\n";
   std::string checkingId,savingsId,customCategoryId,deletedTransactionId;
@@ -69,8 +88,24 @@ int main(){
   std::cerr<<"[TEST] software keyboard shift/caps/symbols/repeat\n";
   {std::string value;TextInputSession session(value,InputType::Text);TextInputManager manager;manager.setForceSoftwareKeyboard(true);manager.focus(session,1);OnScreenKeyboard keyboard;keyboard.press("SHIFT",manager,100);keyboard.press("a",manager,150);CHECK(value=="A"&&keyboard.shiftState()==ShiftState::Inactive);keyboard.press("SHIFT",manager,1000);keyboard.press("SHIFT",manager,1200);CHECK(keyboard.shiftState()==ShiftState::CapsLock);keyboard.press("b",manager,1250);keyboard.press("c",manager,1300);CHECK(value=="ABC");keyboard.press("SHIFT",manager,1400);CHECK(keyboard.shiftState()==ShiftState::Inactive);keyboard.press("123",manager,1500);CHECK(keyboard.layout()==KeyboardLayout::Symbols);keyboard.press("1",manager,1550);keyboard.press("+",manager,1600);CHECK(value=="ABC1+");keyboard.press("ABC",manager,1700);CHECK(keyboard.layout()==KeyboardLayout::Alphabet);keyboard.beginBackspace(manager,2000);CHECK(value=="ABC1");keyboard.update(2449,manager);CHECK(value=="ABC1");keyboard.update(2450,manager);CHECK(value=="ABC");keyboard.update(2530,manager);CHECK(value=="AB");keyboard.endBackspace();keyboard.update(3000,manager);CHECK(value=="AB");}
   std::cerr<<"[TEST] input modes and autosave debounce\n";
+  {
+    std::string first="abc",second="xyz";TextInputSession a(first,InputType::Text),b(second,InputType::Text);
+    TextInputManager manager;manager.setForceSoftwareKeyboard(true);OnScreenKeyboard keyboard;
+    manager.focus(a,1);keyboard.beginBackspace(manager,10);manager.focus(b,20);keyboard.update(500,manager);
+    CHECK(first=="ab"&&second=="xyz");
+    keyboard.beginBackspace(manager,600);manager.hideKeyboard(false);keyboard.update(1100,manager);CHECK(second=="xy");
+  }
   {std::string number;TextInputSession numeric(number,InputType::Number);numeric.insertText("12a-3.5");CHECK(number=="12-3.5");Debouncer debounce(750);debounce.mark(1000);CHECK(!debounce.ready(1749));CHECK(debounce.ready(1750));debounce.clear();CHECK(!debounce.dirty());}
   std::cerr<<"[TEST] application manager\n";
+  {
+    std::string value="old";int called=0;TextInputManager manager;
+    TextInputSession reentrant(value,InputType::Text,{}, {},[&]{++called;manager.blur();});
+    manager.focus(reentrant,1);manager.blur();CHECK(called==1&&manager.focused()==nullptr);
+    std::unique_ptr<TextInputSession> prompt;
+    prompt=std::make_unique<TextInputSession>(value,InputType::Text,TextInputSession::Callback{},[&]{prompt.reset();++called;});
+    prompt->submit();CHECK(!prompt&&called==2);
+    TextInputSession edited(value,InputType::Text);value.clear();edited.deleteBackward();CHECK(value.empty());
+  }
   {ApplicationManager m;auto app=std::make_unique<TestApp>("files");auto*raw=app.get();m.registerApp(std::move(app));CHECK(m.launch("files"));CHECK(raw->opened);CHECK(m.currentId()=="files");CHECK(m.launch("files"));m.home();CHECK(raw->closed);CHECK(m.current()==nullptr);bool duplicate=false;try{m.registerApp(std::make_unique<TestApp>("files"));}catch(...){duplicate=true;}CHECK(duplicate);}
   std::cerr<<"[TEST] platform factory\n";
   auto platform=createPlatform("desktop");

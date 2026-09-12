@@ -88,6 +88,7 @@ void Shell::goHome(){commitNote();if(apps_.currentId()=="finance")financeSecurit
 void Shell::focusInput(TextInputSession&session){textInput_.focus(session,SDL_GetTicks(),true);if(window_)SDL_StartTextInput(window_);}
 void Shell::dismissInput(){textInput_.blur();if(window_)SDL_StopTextInput(window_);}
 void Shell::openTextPrompt(const std::string&title,std::string initial,std::function<void(const std::string&)>action,InputType type,std::size_t maxLength){
+  dismissInput();
   promptTitle_=title;promptText_=std::move(initial);promptAction_=std::move(action);
   promptSession_=std::make_unique<TextInputSession>(promptText_,type,TextInputSession::Callback{},[this]{if(promptAction_&&!promptText_.empty()){auto action=std::move(promptAction_);auto value=promptText_;promptAction_={};dismissInput();action(value);}},TextInputSession::Callback{},maxLength);focusInput(*promptSession_);
 }

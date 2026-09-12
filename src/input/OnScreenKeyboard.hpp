@@ -31,5 +31,6 @@ private:
   std::string pressed_;
   std::uint64_t lastShiftTap_{},backspaceStarted_{},nextRepeat_{};
   bool backspaceHeld_{};
+  TextInputSession* repeatSession_{};
 };
 }

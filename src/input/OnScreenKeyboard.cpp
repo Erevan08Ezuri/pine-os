@@ -38,9 +38,12 @@ void OnScreenKeyboard::render(Shell&s,float width,float height){
 
 bool OnScreenKeyboard::pointerDown(float x,float y,TextInputManager&manager,std::uint64_t now){for(const auto&key:hits_)if(x>=key.x&&x<=key.x+key.w&&y>=key.y&&y<=key.y+key.h){pressed_=key.token;if(key.token=="BKSP")beginBackspace(manager,now);return true;}return false;}
 bool OnScreenKeyboard::pointerUp(float,float,TextInputManager&manager,std::uint64_t now){if(pressed_.empty())return false;const auto token=pressed_;if(token!="BKSP")press(token,manager,now);endBackspace();pressed_.clear();return true;}
-void OnScreenKeyboard::beginBackspace(TextInputManager&manager,std::uint64_t now){manager.deleteFromKeyboard();backspaceHeld_=true;backspaceStarted_=now;nextRepeat_=now+450;}
-void OnScreenKeyboard::endBackspace(){backspaceHeld_=false;backspaceStarted_=nextRepeat_=0;}
-void OnScreenKeyboard::update(std::uint64_t now,TextInputManager&manager){if(backspaceHeld_&&now>=nextRepeat_){manager.deleteFromKeyboard();nextRepeat_=now+(now-backspaceStarted_>1500?45:80);}}
+void OnScreenKeyboard::beginBackspace(TextInputManager&manager,std::uint64_t now){repeatSession_=manager.focused();manager.deleteFromKeyboard();backspaceHeld_=repeatSession_!=nullptr;backspaceStarted_=now;nextRepeat_=now+450;}
+void OnScreenKeyboard::endBackspace(){backspaceHeld_=false;backspaceStarted_=nextRepeat_=0;repeatSession_=nullptr;}
+void OnScreenKeyboard::update(std::uint64_t now,TextInputManager&manager){
+  if(backspaceHeld_&&(!manager.keyboardTargetVisible()||manager.focused()!=repeatSession_)){endBackspace();pressed_.clear();}
+  if(backspaceHeld_&&now>=nextRepeat_){manager.deleteFromKeyboard();nextRepeat_=now+(now-backspaceStarted_>1500?45:80);}
+}
 
 void OnScreenKeyboard::press(const std::string&token,TextInputManager&manager,std::uint64_t now){
   if(token=="SHIFT"){if(shift_==ShiftState::CapsLock)shift_=ShiftState::Inactive;else if(shift_==ShiftState::OneShot&&lastShiftTap_&&now-lastShiftTap_<=350)shift_=ShiftState::CapsLock;else shift_=ShiftState::OneShot;lastShiftTap_=now;return;}

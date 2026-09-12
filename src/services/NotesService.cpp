@@ -15,6 +15,16 @@
 
 namespace Pine {
 using json=nlohmann::json;
+namespace {
+Note readSavedNote(const std::filesystem::path& path,const std::string& expectedId){
+  std::ifstream in(path);json j;in>>j;
+  Note n{j.at("id").get<std::string>(),j.value("title",""),j.value("body",""),j.at("created_at").get<std::int64_t>(),j.at("updated_at").get<std::int64_t>(),j.value("pinned",false)};
+  if(n.id.empty()||n.id.size()>128||n.id!=expectedId||
+     !std::all_of(n.id.begin(),n.id.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_';}))
+    throw std::runtime_error("Invalid note identity");
+  return n;
+}
+}
 std::int64_t NotesService::now(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();}
 std::string NotesService::makeId(){static std::atomic_uint64_t sequence{};std::ostringstream out;
 #ifdef PINE_TAB5
@@ -28,9 +38,20 @@ NotesService::NotesService(std::filesystem::path dataRoot):root_(std::move(dataR
 }
 NotesService::~NotesService(){flush();{std::lock_guard lock(mutex_);stopping_=true;}workCv_.notify_one();if(worker_.joinable())worker_.join();}
 void NotesService::load(){
+  // A reset between staging the old file and committing the new file leaves
+  // a .json.bak. Recover it before enumerating committed notes.
+  for(const auto& entry:std::filesystem::directory_iterator(root_)){
+    if(!entry.is_regular_file()||entry.path().extension()!=".bak"||entry.path().stem().extension()!=".json")continue;
+    auto target=entry.path();target.replace_extension();
+    if(std::filesystem::exists(target))continue;
+    try{
+      (void)readSavedNote(entry.path(),target.stem().string());
+      std::filesystem::rename(entry.path(),target);
+    }catch(const std::exception&){Logger::instance().warn("NOTES","Could not recover note backup");}
+  }
   for(const auto&entry:std::filesystem::directory_iterator(root_)){
     if(!entry.is_regular_file()||entry.path().extension()!=".json")continue;
-    try{std::ifstream in(entry.path());json j;in>>j;Note n{j.at("id").get<std::string>(),j.value("title",""),j.value("body",""),j.at("created_at").get<std::int64_t>(),j.at("updated_at").get<std::int64_t>(),j.value("pinned",false)};if(!n.id.empty())notes_.push_back(std::move(n));}
+    try{notes_.push_back(readSavedNote(entry.path(),entry.path().stem().string()));}
     catch(const std::exception&e){Logger::instance().warn("NOTES","Skipped malformed note "+entry.path().filename().string()+": "+e.what());}
   }
   Logger::instance().info("NOTES","Loaded "+std::to_string(notes_.size())+" notes");
