@@ -44,6 +44,11 @@ esp_err_t esp_bsp_sdl_init(esp_bsp_sdl_display_config_t* cfg,esp_lcd_panel_handl
 }
 esp_err_t pine_tab5_present(const void* pixels) {
     if(!lcd.panel||!transfer_done||!pixels)return ESP_ERR_INVALID_STATE;
+    // A prior callback can leave this binary semaphore full. Drain that token
+    // before submitting a new frame so the wait below always belongs to the
+    // frame we just submitted. This prevents copy/scanout overlap from showing
+    // the previous screen through the current one or producing visible tearing.
+    while(xSemaphoreTake(transfer_done,0)==pdTRUE) {}
     esp_err_t err=esp_lcd_panel_draw_bitmap(lcd.panel,0,0,720,1280,pixels);
     if(err!=ESP_OK) return err;
     return xSemaphoreTake(transfer_done,pdMS_TO_TICKS(1000))?ESP_OK:ESP_ERR_TIMEOUT;
