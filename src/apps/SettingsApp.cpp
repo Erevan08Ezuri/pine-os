@@ -27,7 +27,7 @@ void Shell::renderSettings(){
 #else
   valueRow("BLUETOOTH","NOT SUPPORTED");
 #endif
-  panel({40,y,640,82});label(65,y+18,"DISPLAY BRIGHTNESS",2.3f);meter({300,y+28,205,12},display_.brightness());if(button({525,y+15,55,48},"-")){display_.setBrightness(display_.brightness()-5);persist();}if(button({590,y+15,55,48},"+",true)){display_.setBrightness(display_.brightness()+5);persist();}y+=92;
+  panel({40,y,640,82});label(65,y+18,"DISPLAY BRIGHTNESS",2.3f);const auto brightness=display_.brightness();meter({300,y+28,160,12},brightness);label(472,y+20,std::to_string(brightness)+"%",2.0f,Theme::Gold);if(button({525,y+15,55,48},"-")){display_.setBrightness(std::max(10,brightness-10));persist();}if(button({590,y+15,55,48},"+",true)){display_.setBrightness(std::min(100,brightness+10));persist();}y+=92;
   panel({40,y,640,82});label(65,y+18,"SOUND VOLUME",2.3f);meter({300,y+28,205,12},audio_.volume());if(button({525,y+15,55,48},"-")){audio_.setVolume(audio_.volume()-5);persist();}if(button({590,y+15,55,48},"+",true)){audio_.setVolume(audio_.volume()+5);persist();}y+=92;
   panel({40,y,640,68});label(65,y+22,"MUTE",2.5f);if(button({475,y+10,175,48},audio_.muted()?"MUTED":"ACTIVE")){audio_.setMuted(!audio_.muted());persist();}y+=78;
   valueRow("BATTERY",battery_.percentage()<0?"LEVEL UNAVAILABLE":std::to_string(battery_.percentage())+"% "+(battery_.isCharging()?"CHARGING":"BATTERY"));
