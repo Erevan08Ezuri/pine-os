@@ -103,24 +103,37 @@ void* pineMainThread(void*){
         if(!Pine::initializeEmbeddedFonts(regularStart,regularEnd-regularStart,boldStart,boldEnd-boldStart))
             throw std::runtime_error("Bundled fonts unavailable");
 
-        auto* surface=SDL_CreateSurface(720,1280,SDL_PIXELFORMAT_RGB565);
-        if(!surface)throw std::runtime_error(SDL_GetError());
-        auto* renderer=SDL_CreateSoftwareRenderer(surface);
-        if(!renderer){
-            SDL_DestroySurface(surface);
-            throw std::runtime_error(SDL_GetError());
+        void* lcdBuffers[2]={pine_tab5_framebuffer(0),pine_tab5_framebuffer(1)};
+        const bool directBuffers=lcdBuffers[0]&&lcdBuffers[1];
+        SDL_Surface* surfaces[2]{};
+        SDL_Renderer* renderers[2]{};
+        if(directBuffers){
+            for(int i=0;i<2;++i){
+                surfaces[i]=SDL_CreateSurfaceFrom(720,1280,SDL_PIXELFORMAT_RGB565,lcdBuffers[i],720*2);
+                if(!surfaces[i])throw std::runtime_error(SDL_GetError());
+                renderers[i]=SDL_CreateSoftwareRenderer(surfaces[i]);
+                if(!renderers[i])throw std::runtime_error(SDL_GetError());
+            }
+            ESP_LOGI("PineTab5","Direct double-buffered LCD rendering enabled");
+        }else{
+            surfaces[0]=SDL_CreateSurface(720,1280,SDL_PIXELFORMAT_RGB565);
+            if(!surfaces[0])throw std::runtime_error(SDL_GetError());
+            renderers[0]=SDL_CreateSoftwareRenderer(surfaces[0]);
+            if(!renderers[0])throw std::runtime_error(SDL_GetError());
+            ESP_LOGW("PineTab5","LCD double buffers unavailable; using copy fallback");
         }
 
         {
-            auto ownedShell=std::make_unique<Pine::Shell>(nullptr,renderer,config,Pine::createTab5Platform());
+            int backBuffer=directBuffers?1:0; // DSI starts scanning framebuffer 0.
+            auto ownedShell=std::make_unique<Pine::Shell>(nullptr,renderers[backBuffer],config,Pine::createTab5Platform());
             auto& shell=*ownedShell;
             shell.textInput().setForceSoftwareKeyboard(true);
             logMemory("shell ready");
             auto previous=SDL_GetTicks();
             auto lastPresent=previous;
             std::uint64_t lastClockSave=0;
-            constexpr std::uint64_t frameIntervalMs=33; // ~30 FPS during idle/animation.
-            constexpr std::uint64_t interactionFrameMinMs=8; // Present touch edges quickly without flooding DSI.
+            constexpr std::uint64_t fallbackFrameIntervalMs=33;
+            constexpr std::uint64_t interactionFrameMinMs=8;
             while(shell.running()){
                 auto now=SDL_GetTicks();
                 if(now-lastClockSave>=60000){
@@ -132,20 +145,33 @@ void* pineMainThread(void*){
                 shell.update((now-previous)/1000.0);
                 previous=now;
 
-                const bool scheduledFrame=now-lastPresent>=frameIntervalMs;
-                const bool interactionFrame=touchEdge&&now-lastPresent>=interactionFrameMinMs;
-                if(scheduledFrame||interactionFrame){
+                if(directBuffers){
+                    // Render only into the framebuffer that is not currently
+                    // being scanned out. pine_tab5_present waits for the refresh
+                    // boundary before this buffer can become the front buffer.
+                    shell.setRenderer(renderers[backBuffer]);
                     shell.render();
-                    ESP_ERROR_CHECK(pine_tab5_present(surface->pixels));
+                    ESP_ERROR_CHECK(pine_tab5_present(lcdBuffers[backBuffer]));
+                    backBuffer^=1;
                     lastPresent=SDL_GetTicks();
+                }else{
+                    const bool scheduledFrame=now-lastPresent>=fallbackFrameIntervalMs;
+                    const bool interactionFrame=touchEdge&&now-lastPresent>=interactionFrameMinMs;
+                    if(scheduledFrame||interactionFrame){
+                        shell.render();
+                        ESP_ERROR_CHECK(pine_tab5_present(surfaces[0]->pixels));
+                        lastPresent=SDL_GetTicks();
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(2));
                 }
-                vTaskDelay(pdMS_TO_TICKS(2));
             }
         }
 
         Pine::shutdownFonts();
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroySurface(surface);
+        for(int i=0;i<2;++i){
+            if(renderers[i])SDL_DestroyRenderer(renderers[i]);
+            if(surfaces[i])SDL_DestroySurface(surfaces[i]);
+        }
         SDL_Quit();
     }catch(const std::exception& e){
         ESP_LOGE("PineTab5","Startup failed: %s",e.what());
