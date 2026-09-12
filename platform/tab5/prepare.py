@@ -28,6 +28,17 @@ def replace_required(path, old, new):
         raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
 
 
+def replace_all_required(path, old, new):
+    """Replace every known occurrence while remaining idempotent."""
+    contents = path.read_text(encoding='utf-8')
+    if old in contents:
+        path.write_text(contents.replace(old, new), encoding='utf-8')
+        return
+    if new in contents:
+        return
+    raise RuntimeError(f'Unable to patch unexpected vendor source: {path}')
+
+
 def replace_any_required(path, olds, new):
     """Replace any known prior form with the desired vendor patch.
 
@@ -90,6 +101,20 @@ def prepare():
         ),
         '.dpi_clock_freq_mhz = 50,  // PineOS: conservative pixel clock for PSRAM scanout',
     )
+
+    # PineOS presents complete software-rendered frames. A single DSI framebuffer
+    # lets the controller scan memory while the next frame is being copied into it,
+    # which causes visible flicker/ghosting. Allocate two panel framebuffers for
+    # every Tab5 panel path so the SDL shim can perform a frame-boundary page flip.
+    replace_all_required(display, '.num_fbs            = 1,', '.num_fbs            = 2,')
+    replace_all_required(
+        bsp / 'priv_include/esp_lcd_st7123.h',
+        '.num_fbs = 1,',
+        '.num_fbs = 2,',
+    )
+    st7121_header = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/include/esp_lcd_st7121.h'
+    replace_all_required(st7121_header, '.num_fbs = 1,', '.num_fbs = 2,')
+
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
     panel.write_text(
         'idf_component_register(SRCS "esp_lcd_st7121.c" INCLUDE_DIRS "include" REQUIRES esp_lcd)\n',
