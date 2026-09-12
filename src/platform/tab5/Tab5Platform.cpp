@@ -1,6 +1,8 @@
 #include "platform/tab5/Tab5Platform.hpp"
 #include "platform/tab5/Tab5Network.hpp"
+#include "platform/tab5/Tab5Camera.hpp"
 #include "bsp/m5stack_tab5.h"
+#include "esp_log.h"
 #include <algorithm>
 namespace Pine {
 namespace {
@@ -8,11 +10,6 @@ namespace {
 class Battery final:public BatteryBackend{
 public:int percentage()const override{return -1;}bool charging()const override{return false;}
     void setPercentage(int)override{}void setCharging(bool)override{}
-};
-class Camera final:public CameraBackend{
-public:bool available()const override{return false;}bool start()override{return false;}
-    void stop()override{}bool capturePhoto(const std::filesystem::path&)override{return false;}
-    void setAvailable(bool)override{}
 };
 class Bluetooth final:public BluetoothBackend{
     std::vector<BluetoothDevice> devices_;
@@ -35,11 +32,17 @@ public:UsbMode mode()const override{return bsp_usb_c_detect()?UsbMode::ChargingO
 };
 class Display final:public DisplayBackend{
     int value_{100};
-public:int brightness()const override{return value_;}
-    void setBrightness(int v)override{v=std::clamp(v,5,100);if(bsp_display_brightness_set(v)==ESP_OK)value_=v;}
+public:
+    int brightness()const override{return value_;}
+    void setBrightness(int v)override{
+        v=std::clamp(v,0,100);
+        const auto result=bsp_display_brightness_set(v);
+        if(result==ESP_OK)value_=v;
+        else ESP_LOGW("PineDisplay","Unable to set brightness to %d%%: %s",v,esp_err_to_name(result));
+    }
 };
 class Tab5 final:public Platform{
-    Battery battery_;Camera camera_;Bluetooth bluetooth_;Audio audio_;Tab5Network network_;Usb usb_;Display display_;
+    Battery battery_;Tab5Camera camera_;Bluetooth bluetooth_;Audio audio_;Tab5Network network_;Usb usb_;Display display_;
 public:
     std::string name()const override{return "tab5";}
     DeviceInformation deviceInfo()const override{return{"M5Stack Tab5","ESP32-P4 RISC-V"};}
