@@ -43,7 +43,7 @@ def package_firmware(tab5_dir: Path) -> Path:
 
 
 def validate_generated_config(tab5_dir: Path) -> None:
-    """Refuse to package firmware if ESP-IDF silently fell back to slow PSRAM."""
+    """Refuse to package firmware when critical Tab5 hardware config was dropped."""
     sdkconfig = tab5_dir / 'sdkconfig'
     if not sdkconfig.is_file():
         raise RuntimeError('Generated sdkconfig is missing after build')
@@ -53,12 +53,19 @@ def validate_generated_config(tab5_dir: Path) -> None:
         'CONFIG_IDF_EXPERIMENTAL_FEATURES=y',
         'CONFIG_SPIRAM_MODE_HEX=y',
         'CONFIG_SPIRAM_SPEED_200M=y',
+        'CONFIG_CAMERA_SC202CS=y',
+        'CONFIG_CAMERA_SC202CS_AUTO_DETECT=y',
+        'CONFIG_CAMERA_SC202CS_AUTO_DETECT_MIPI_INTERFACE_SENSOR=y',
+        'CONFIG_CAMERA_SC202CS_MIPI_RAW8_1280x720_30FPS=y',
+        'CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE=y',
+        'CONFIG_ESP_VIDEO_ENABLE_ISP=y',
+        'CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE=y',
     )
     missing = [entry for entry in required if entry not in text]
     if missing or 'CONFIG_SPIRAM_SPEED_20M=y' in text:
         details = ', '.join(missing) if missing else 'CONFIG_SPIRAM_SPEED_20M=y is still enabled'
         raise RuntimeError(
-            'Unsafe Tab5 memory config: ' + details + '. '
+            'Unsafe/incomplete Tab5 hardware config: ' + details + '. '
             'Delete platform/tab5/sdkconfig and platform/tab5/build, then rebuild from current defaults.'
         )
 
@@ -68,7 +75,7 @@ def validate_generated_config(tab5_dir: Path) -> None:
             'Delete platform/tab5/sdkconfig and platform/tab5/build, then rebuild.'
         )
 
-    print('[PINE][CONFIG] Verified ESP32-P4 HEX PSRAM at 200 MHz with XIP-from-PSRAM disabled.')
+    print('[PINE][CONFIG] Verified 200 MHz HEX PSRAM, MIPI camera/ISP, and XIP-from-PSRAM disabled.')
 
 
 def main():
