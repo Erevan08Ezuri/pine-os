@@ -50,6 +50,16 @@ def prepare():
     # The pinned factory BSP refers to ES7210 microphone selectors as ES7120,
     # which prevents the otherwise supported audio component from compiling.
     replace_required(bsp / 'm5stack_tab5.c', 'ES7120_SEL_MIC', 'ES7210_SEL_MIC')
+    # The factory ST712x path runs the 720x1280 DPI scanout at 70 MHz. On the
+    # ESP32-P4 this can repeatedly underrun when the framebuffer lives in
+    # external PSRAM while PineOS is also rendering/copying full RGB565 frames.
+    # 60 MHz keeps the same porch/timing geometry but lowers sustained memory
+    # bandwidth enough to make scanout substantially more tolerant.
+    replace_required(
+        bsp / 'm5stack_tab5.c',
+        '.dpi_clock_freq_mhz = 70,  // DPI clock frequency',
+        '.dpi_clock_freq_mhz = 60,  // PineOS: reduce PSRAM scanout bandwidth',
+    )
     panel = DEPS / 'factory/platforms/tab5/components/esp_lcd_st7121/CMakeLists.txt'
     panel.write_text(
         'idf_component_register(SRCS "esp_lcd_st7121.c" INCLUDE_DIRS "include" REQUIRES esp_lcd)\n',
