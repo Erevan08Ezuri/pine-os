@@ -68,11 +68,11 @@ void Shell::meter(Rect r,int value){SDL_SetRenderDrawColor(renderer_,Theme::Surf
 void Shell::toast(std::string value){toast_=std::move(value);toastUntil_=SDL_GetTicks()+2300;}
 bool Shell::launchApp(const std::string&id){
 #ifdef PINE_TAB5
-  if(id=="finance"&&!tab5ClockValid()){toast("CONNECT WI-FI TO SET THE CLOCK");return false;}
-  if(id=="camera"||id=="bluetooth"){toast("NOT SUPPORTED IN THIS FIRMWARE");return false;}
+  if(id=="bluetooth"){toast("BLUETOOTH SUPPORT IS STILL INITIALIZING");return false;}
 #endif
   if(apps_.currentId()=="notes"&&id!="notes")commitNote();
   if(apps_.currentId()=="finance"&&id!="finance")financeSecurity_.onBackground(SDL_GetTicks());
+  if(apps_.currentId()=="camera"&&id!="camera")camera_.stop();
   if(apps_.currentId()!=id)toast_.clear();
   dismissInput();
   cancelPrompts();
@@ -85,7 +85,7 @@ bool Shell::launchApp(const std::string&id){
   }
   return opened;
 }
-void Shell::goHome(){cancelPrompts();commitNote();if(apps_.currentId()=="finance")financeSecurity_.onBackground(SDL_GetTicks());dismissInput();deleteNotePrompt_=false;if(notesView_==NotesView::Editor)notesView_=NotesView::List;apps_.home();}
+void Shell::goHome(){cancelPrompts();commitNote();if(apps_.currentId()=="finance")financeSecurity_.onBackground(SDL_GetTicks());if(apps_.currentId()=="camera")camera_.stop();dismissInput();deleteNotePrompt_=false;if(notesView_==NotesView::Editor)notesView_=NotesView::List;apps_.home();}
 bool Shell::hasAppOverlay()const {
   return deleteNotePrompt_||financeQuickMenu_||financeTypePicker_||financeTransactionPicker_||financeTransferPicker_||financeFilterPrompt_||financeDashboardPrompt_||financeDeletePrompt_||financeArchivePrompt_||financeErasePrompt_||financeRestorePrompt_||financeImportPrompt_;
 }
