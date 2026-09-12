@@ -10,7 +10,11 @@ void Shell::renderCamera(){
 #ifdef PINE_TAB5
   bool live=false;
   static CameraFrame frame;
-  if(camera_.available()&&camera_.previewFrame(frame)&&frame.width>0&&frame.height>0&&!frame.pixels.empty()){
+  if(camera_.available())camera_.previewFrame(frame);
+  // The sensor runs around 30 FPS while the display may refresh faster. Keep
+  // showing the last complete camera frame when DQBUF has no newer frame yet,
+  // instead of alternating between video and a waiting card.
+  if(frame.width>0&&frame.height>0&&!frame.pixels.empty()){
     SDL_Surface*surface=SDL_CreateSurfaceFrom(frame.width,frame.height,SDL_PIXELFORMAT_RGB565,frame.pixels.data(),frame.width*2);
     if(surface){
       SDL_Texture*texture=SDL_CreateTextureFromSurface(renderer_,surface);

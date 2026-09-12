@@ -5,6 +5,8 @@ CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_HEX=y
 CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_CACHE_L2_CACHE_256KB=y
+CONFIG_CACHE_L2_CACHE_LINE_128B=y
 # Keep application code/rodata out of PSRAM so the display scanout does not
 # compete with instruction/data fetches on the external-memory bus.
 # CONFIG_SPIRAM_XIP_FROM_PSRAM is not set
