@@ -5,20 +5,73 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import zipfile
+
 from prepare import prepare
+
+
+def package_firmware(tab5_dir: Path) -> Path:
+    build_dir = tab5_dir / 'build'
+    required = [
+        build_dir / 'bootloader' / 'bootloader.bin',
+        build_dir / 'partition_table' / 'partition-table.bin',
+        build_dir / 'pine_tab5.bin',
+        build_dir / 'flasher_args.json',
+    ]
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise RuntimeError('Build succeeded but firmware package is incomplete; missing: ' + ', '.join(missing))
+
+    dist_dir = tab5_dir.parent.parent / 'dist'
+    dist_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = dist_dir / 'PineOS-Tab5.zip'
+
+    entries = [
+        (required[0], 'bootloader/bootloader.bin'),
+        (required[1], 'partition_table/partition-table.bin'),
+        (required[2], 'pine_tab5.bin'),
+        (required[3], 'flasher_args.json'),
+    ]
+
+    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for source, archive_name in entries:
+            archive.write(source, archive_name)
+
+    print(f'[PINE][PACKAGE] Created {zip_path}')
+    return zip_path
+
+
 def main():
-    parser=argparse.ArgumentParser(description='Build/flash PineOS for M5Stack Tab5')
-    parser.add_argument('action',choices=['build','flash','monitor','menuconfig'],nargs='?',default='build')
-    parser.add_argument('--port',help='COM5 or /dev/ttyACM0, for example')
-    args=parser.parse_args()
-    idf=shutil.which('idf.py')
+    parser = argparse.ArgumentParser(description='Build/flash PineOS for M5Stack Tab5')
+    parser.add_argument('action', choices=['build', 'flash', 'monitor', 'menuconfig'], nargs='?', default='build')
+    parser.add_argument('--port', help='COM5 or /dev/ttyACM0, for example')
+    args = parser.parse_args()
+
+    idf = shutil.which('idf.py')
     if not idf or not os.environ.get('IDF_PATH'):
         parser.error('Open an ESP-IDF 5.5.1 terminal first; see docs/TAB5.md')
-    if args.action in ('flash','monitor') and not args.port:
+    if args.action in ('flash', 'monitor') and not args.port:
         parser.error('--port is required to select the intended device')
+
     prepare()
-    command=[sys.executable,idf,'-C',str(Path(__file__).resolve().parent)]
-    if args.port: command+=['-p',args.port]
-    return subprocess.run(command+[args.action]).returncode
-if __name__=='__main__':
+    tab5_dir = Path(__file__).resolve().parent
+    command = [sys.executable, idf, '-C', str(tab5_dir)]
+    if args.port:
+        command += ['-p', args.port]
+
+    result = subprocess.run(command + [args.action])
+    if result.returncode != 0:
+        return result.returncode
+
+    if args.action == 'build':
+        try:
+            package_firmware(tab5_dir)
+        except Exception as exc:
+            print(f'[PINE][PACKAGE][ERROR] {exc}', file=sys.stderr)
+            return 1
+
+    return 0
+
+
+if __name__ == '__main__':
     sys.exit(main())
